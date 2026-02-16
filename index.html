@@ -1,0 +1,4096 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+  <meta charset="UTF-8">
+  <title>Escape Room Πληροφορικής: The Wiper Virus </title>
+  <style>
+    :root{
+      --hud-h: 80px;
+      --accent-color: #ffd700;
+      --bg-color: #1a1a1a;
+      --danger-color: #ff3333;
+      --term-green: #0f0;
+    }
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      background: #111; 
+      background-image: url("background.png");
+      background-repeat: no-repeat;
+      background-position: center center;
+      background-attachment: fixed;
+      background-size: cover;
+      color: #fff;
+      margin: 0;
+      padding: calc(var(--hud-h) + 10px) 14px 20px 14px;
+      overflow-x: hidden;
+      user-select: none;
+      cursor: default;
+      transition: filter 0.1s;
+    }
+
+    /* --- CRT SCANLINE EFFECT --- */
+    body::before {
+      content: " ";
+      display: block;
+      position: fixed;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      z-index: 9990;
+      background-size: 100% 2px, 3px 100%;
+      pointer-events: none;
+    }
+
+    /* --- PANIC MODE (RED PULSE) --- */
+    @keyframes panic-pulse {
+      0% { box-shadow: inset 0 0 0 red; }
+      50% { box-shadow: inset 0 0 100px rgba(255, 0, 0, 0.6); }
+      100% { box-shadow: inset 0 0 0 red; }
+    }
+    .panic-mode {
+      animation: panic-pulse 1s infinite;
+      border: 2px solid red;
+    }
+
+    /* --- ΦΑΚΟΣ (Darkness Overlay) --- */
+    #darkness-overlay {
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 9998;
+      background: radial-gradient(circle 250px at 50% 50%, transparent 0%, rgba(0,0,0,0.98) 100%);
+      display: none;
+      transition: background 0.05s linear;
+    }
+
+    /* --- GLITCH ANIMATION --- */
+    .glitch-active {
+      animation: glitch-anim 0.3s cubic-bezier(.25, .46, .45, .94) both infinite;
+      color: red !important;
+      text-shadow: 2px 0 blue, -2px 0 red;
+    }
+    @keyframes glitch-anim {
+      0% { transform: translate(0); }
+      20% { transform: translate(-5px, 5px); }
+      40% { transform: translate(-5px, -5px); }
+      60% { transform: translate(5px, 5px); }
+      80% { transform: translate(5px, -5px); }
+      100% { transform: translate(0); }
+    }
+
+    body::after {
+      content: " ";
+      display: block;
+      position: fixed;
+      top: 0; left: 0; bottom: 0; right: 0;
+      box-shadow: inset 0 0 150px rgba(0,0,0,0.9);
+      z-index: 50;
+      pointer-events: none;
+    }
+
+    .screen {
+      display: none;
+      padding: 12px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      outline: none;
+    }
+    .screen.active { opacity: 1; }
+
+    .screen h1, .screen h2 {
+      margin: 6px 0 8px 0;
+      text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+
+    input[type="text"], input[type="password"], input[type="number"] {
+        background: rgba(0, 0, 0, 0.8);
+        border: 2px solid var(--accent-color);
+        color: var(--accent-color);
+        font-family: 'Courier New', monospace;
+        padding: 10px;
+        font-size: 1.1em;
+        width: 300px;
+        max-width: 90%;
+        outline: none;
+        border-radius: 6px;
+        box-shadow: 0 0 5px var(--accent-color);
+        text-align: center;
+    }
+    input::placeholder { color: #555; }
+
+    button {
+      padding: 10px 20px;
+      margin: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 8px;
+      background: #222;
+      color: #fff;
+      border: 2px solid #555;
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s ease;
+    }
+    button:hover {
+      background: #444;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+      border-color: var(--accent-color);
+    }
+
+    .correct { color: lightgreen; font-weight: bold; }
+    .wrong    { color: #ff6b6b;  font-weight: bold; }
+
+    /* GENERIC DRAG DROP (Room 2) */
+    .drag-container {
+      display: flex;
+      justify-content: center;
+      margin: 12px;
+      flex-wrap: wrap;
+      min-height: 60px;
+    }
+    .drag-item, .drop-zone {
+      border: 2px dashed #ccc;
+      margin: 8px;
+      padding: 10px;
+      width: 150px;
+      min-height: 50px;
+      background: rgba(30,30,30,0.8);
+      border-radius: 10px;
+    }
+    .drag-item { cursor: grab; z-index: 100; }
+
+    /* PARSONS PROBLEM STYLES (Room 6) */
+    .parsons-container {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+        margin-top: 10px;
+    }
+    .parsons-line {
+        background: #333;
+        border: 1px solid var(--accent-color);
+        padding: 8px;
+        width: 280px;
+        cursor: grab;
+        font-family: 'Courier New', monospace;
+        text-align: left;
+        margin-bottom: 5px;
+    }
+    .parsons-drop-area {
+        border: 2px dashed #666;
+        min-height: 200px;
+        width: 300px;
+        padding: 10px;
+        background: rgba(0,0,0,0.5);
+    }
+
+    /* BIT FLIPPER STYLES (Room 3) */
+    .bit-container {
+        display: flex;
+        gap: 5px;
+        justify-content: center;
+        margin: 15px 0;
+    }
+    .bit-btn {
+        width: 40px; height: 50px;
+        font-size: 20px;
+        font-family: monospace;
+        border: 2px solid #555;
+        background: #222;
+        color: #555;
+    }
+    .bit-btn.active {
+        border-color: #0f0;
+        color: #0f0;
+        background: #003300;
+        box-shadow: 0 0 10px #0f0;
+    }
+    .bit-display { font-family: monospace; font-size: 1.2em; color: var(--accent-color); }
+
+    /* SPOT THE BUG STYLES (Room 8) */
+    .code-token {
+        display: inline-block;
+        padding: 2px 5px;
+        margin: 2px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: background 0.2s;
+    }
+    .code-token:hover {
+        background: rgba(255,255,255,0.1);
+        border: 1px solid #555;
+    }
+
+    /* VIRUS POPUP STYLES (Room 10) */
+    .virus-popup {
+        position: fixed;
+        width: 200px;
+        background: #000;
+        border: 2px solid red;
+        color: red;
+        z-index: 900;
+        padding: 10px;
+        text-align: center;
+        box-shadow: 5px 5px 15px rgba(0,0,0,0.8);
+        animation: popIn 0.2s;
+    }
+    #qblock-room10 { position: relative; z-index: 1000; }
+    .virus-close {
+        position: absolute;
+        top: 2px; right: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        color: white;
+        background: red;
+        width: 20px; height: 20px;
+        line-height: 20px;
+        border-radius: 50%;
+    }
+    .email-inbox { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin: 10px 0; }
+    .email-card { background: #1a1a2e; border: 1px solid #444; border-radius: 8px; padding: 12px; max-width: 220px; text-align: left; }
+    .email-from { font-size: 11px; color: #888; margin-bottom: 4px; }
+    .email-subject { font-weight: bold; color: #eee; margin-bottom: 6px; }
+    .email-preview { font-size: 12px; color: #aaa; margin-bottom: 8px; }
+    .email-delete { background: #c00; color: #fff; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; }
+    .email-delete:hover { background: #e00; }
+    .security-panel, .protocol-choice { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin: 12px 0; }
+    .security-option, .protocol-option { background: #1a1a2e; border: 2px solid #555; border-radius: 8px; padding: 14px 20px; cursor: pointer; min-width: 180px; text-align: center; }
+    .security-option:hover, .protocol-option:hover { border-color: #5dade2; background: #252540; }
+    .sec-icon { display: block; font-size: 24px; margin-bottom: 4px; }
+
+    a { color: #5dade2; text-decoration: none; border-bottom: 1px dotted #5dade2; }
+    a:hover { color: var(--accent-color); border-bottom-style: solid; }
+
+    .text-box {
+      background: rgba(0,0,0,0.85);
+      padding: 15px;
+      border-radius: 8px;
+      display: block;
+      margin: 10px auto;
+      text-align: center;
+      max-width: 700px;
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+
+    .answers { margin-top: 8px; }
+
+    .media-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 12px auto;
+    }
+    .media-container iframe,
+    .media-container img {
+      max-width: 90%;
+      border-radius: 12px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.6);
+      margin: 8px 0;
+    }
+
+    #hudWrapper {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 900;
+      padding: 8px 10px;
+      background: rgba(0,0,0,0.9);
+      backdrop-filter: blur(4px);
+      border-bottom: 2px solid #444;
+    }
+
+    #hud {
+      width: 100%;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .hud-left, .hud-center, .hud-right {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px 10px;
+      min-width: 0;
+    }
+
+    .hud-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(20,20,20,0.75);
+      border: 1px solid rgba(255,255,255,0.15);
+      white-space: nowrap;
+    }
+
+    #integrity-container {
+      width: 140px;
+      height: 12px;
+      background: #222;
+      border: 1px solid #555;
+      position: relative;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-left: 5px;
+    }
+    #integrity-bar {
+      width: 100%;
+      height: 100%;
+      background: lightgreen;
+      transition: width 0.5s ease, background 0.3s;
+    }
+    #integrity-label {
+      font-size: 10px;
+      position: absolute;
+      top: -16px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      color: #ccc;
+    }
+
+    #difficultyIndicator { font-style: italic; opacity: 0.95; }
+
+    #timer {
+      font-size: 16px;
+      font-weight: bold;
+      color: #ff4444;
+      padding: 6px 12px;
+      background: rgba(20,20,20,0.85);
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.15);
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    #keysHud { font-size: 14px; font-weight: 700; letter-spacing: 0.2px; }
+
+    #settingsBtn, #teacherInfoBtn {
+      font-size: 12px;
+      padding: 6px 10px;
+      margin: 0;
+      border-radius: 10px;
+      width: auto;
+      white-space: nowrap;
+    }
+
+    #teacherInfoPanel {
+      position: fixed;
+      top: calc(var(--hud-h) + 10px);
+      right: 12px;
+      background: rgba(10,10,10,0.95);
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-size: 12px;
+      text-align: left;
+      display: none;
+      width: 280px;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.12);
+      z-index: 950;
+    }
+    #teacherInfoPanel h4 { margin: 0 0 6px 0; font-size: 12px; }
+    #teacherInfoPanel ul { padding-left: 16px; margin: 0; }
+    #teacherInfoPanel li { margin-bottom: 3px; }
+
+    #settingsPanel {
+      display: none;
+      position: fixed;
+      top: calc(var(--hud-h) + 10px);
+      right: 12px;
+      background: rgba(0,0,0,0.92);
+      padding: 10px;
+      border-radius: 10px;
+      font-size: 13px;
+      width: 260px;
+      z-index: 950;
+      text-align: left;
+      box-shadow: 0 8px 18px rgba(0,0,0,0.55);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    #settingsPanel label { font-size: 13px; }
+
+    .hint-text { color: #ffd86b; font-style: italic; min-height: 1em; margin-top: 6px; }
+
+    #splash {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      color: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 1.5em;
+      z-index: 1000;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .hidden { display: none !important; }
+
+    .blinking { animation: blinker 1.5s linear infinite; color: yellow; font-weight: bold; text-align: center; }
+    @keyframes blinker { 50% { opacity: 0; } }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.5); transform: scale(1); }
+      50% { box-shadow: 0 0 20px rgba(255, 215, 0, 0.8); transform: scale(1.1); }
+    }
+
+    #celebration { margin-top: 12px; font-size: 1.35em; min-height: 2em; }
+    .celebration-legendary { color: #ffd700; text-shadow: 0 0 10px rgba(255,215,0,0.8); animation: glow 1.5s infinite alternate; }
+    .celebration-good { color: #7CFC00; text-shadow: 0 0 8px rgba(124,252,0,0.7); animation: glow 2s infinite alternate; }
+    .celebration-basic { color: #87CEEB; text-shadow: 0 0 6px rgba(135,206,235,0.7); }
+
+    @keyframes glow {
+      from { transform: scale(1); opacity: 0.9; }
+      to   { transform: scale(1.05); opacity: 1; }
+    }
+
+    .difficulty-badge {
+      display: inline-block;
+      margin-top: 2px;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    .difficulty-easy    { background: rgba(76, 175, 80, 0.25); border: 1px solid #4caf50; color: #c8e6c9; }
+    .difficulty-medium { background: rgba(255, 193, 7, 0.2);  border: 1px solid #ffc107; color: #ffecb3; }
+    .difficulty-hard    { background: rgba(244, 67, 54, 0.25); border: 1px solid #f44336; color: #ffcdd2; }
+    .difficulty-boss    { background: rgba(255, 0, 0, 0.4);      border: 1px solid red;       color: #fff; animation: pulseRed 1s infinite; }
+
+    .story-box { background: rgba(0,0,0,0.8); border: 1px solid rgba(255,255,255,0.3); font-weight: bold; }
+    .story-highlight { color: #ffd700; text-shadow: 0 0 8px rgba(255,215,0,0.7); animation: glow 2.5s ease-in-out infinite; }
+
+    #progressMap {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 6px;
+      z-index: 800;
+    }
+    .room-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.2);
+      border: 2px solid rgba(255,255,255,0.4);
+    }
+    .room-dot-active { background: #ffd700; border-color: #ffd700; }
+    .room-dot-solved { background: #4caf50; border-color: #4caf50; }
+
+    .avatar-option {
+      display: inline-block;
+      margin: 5px 10px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 2px solid #555;
+      cursor: pointer;
+    }
+    .avatar-option.selected { border-color: #ffd700; background: rgba(255,215,0,0.1); }
+
+    .key-earned {
+      margin: 10px auto 0 auto;
+      max-width: 700px;
+      display: none;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.7);
+      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 0 12px rgba(0,0,0,0.6);
+      transform: translateY(6px) scale(0.98);
+      opacity: 0;
+    }
+    .key-earned.show { display: block; animation: keyPop 0.35s ease-out forwards; }
+    @keyframes keyPop {
+      from { opacity: 0; transform: translateY(8px) scale(0.96); }
+      to   { opacity: 1; transform: translateY(0px) scale(1); }
+    }
+
+    #access-denied {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: #ff3333;
+      font-size: 3em;
+      font-weight: 900;
+      border: 5px solid #ff3333;
+      padding: 20px 40px;
+      background: rgba(0,0,0,0.9);
+      z-index: 9999;
+      display: none;
+      text-transform: uppercase;
+      box-shadow: 0 0 50px #ff3333;
+      letter-spacing: 5px;
+    }
+
+    .interaction-layer {
+      position: relative;
+      width: 100%;
+      height: 65vh;
+      display: block;
+      margin-bottom: 20px;
+      border: 2px dashed rgba(255,255,255,0.1);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+      overflow: hidden;
+    }
+
+    .hotspot {
+      position: absolute;
+      cursor: crosshair;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 26px;
+      z-index: 9002;
+      transition: transform 0.2s;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      width: 65px;
+      height: 65px;
+      user-select: none;
+    }
+    .hotspot:hover {
+      transform: scale(1.1);
+      background: rgba(255,215,0,0.3);
+      border-color: var(--accent-color);
+    }
+
+    .pulse-active {
+      animation: pulseRed 1s infinite alternate !important;
+      background: rgba(255, 0, 0, 0.4) !important;
+      border: 2px solid red !important;
+      z-index: 9003 !important;
+      cursor: pointer !important;
+    }
+    .pulse-active::after {
+      content: "🔓 ΠΑΤΑ ΕΔΩ";
+      position: absolute;
+      top: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: red;
+      color: white;
+      padding: 2px 6px;
+      font-size: 12px;
+      border-radius: 4px;
+      white-space: nowrap;
+      font-weight: bold;
+    }
+    @keyframes pulseRed {
+      from { box-shadow: 0 0 10px red; transform: scale(1); }
+      to   { box-shadow: 0 0 25px red; transform: scale(1.1); }
+    }
+
+    #clue-popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(10,10,10,0.95);
+      border: 2px solid #33ff33;
+      padding: 25px;
+      border-radius: 15px;
+      z-index: 10001; /* Fix: > 9998 */
+      max-width: 600px;
+      text-align: center;
+      box-shadow: 0 0 40px #000;
+      animation: popIn 0.3s;
+    }
+    @keyframes popIn {
+      from { opacity:0; transform:translate(-50%,-50%) scale(0.8); }
+      to   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+    }
+    /* Tooltip for Room 8 debugging tokens */
+    #room8-tooltip {
+      display: none;
+      position: fixed;
+      background: rgba(255, 200, 0, 0.95);
+      border: 2px solid #ffaa00;
+      padding: 12px 18px;
+      border-radius: 8px;
+      z-index: 10002;
+      max-width: 350px;
+      text-align: center;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      animation: tooltipFadeIn 0.3s;
+      font-size: 0.95em;
+      color: #000;
+      font-weight: bold;
+      pointer-events: none;
+    }
+    @keyframes tooltipFadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Στατιστικά μαθητή – οθόνη τερματισμού */
+    .student-stats-wrapper {
+      max-width: 640px;
+      margin: 24px auto;
+      text-align: left;
+      background: linear-gradient(145deg, rgba(0, 25, 0, 0.4), rgba(0, 15, 0, 0.6));
+      border: 1px solid rgba(0, 255, 0, 0.35);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    }
+    .student-stats-title {
+      color: #ffd700;
+      margin: 0 0 20px 0;
+      font-size: 1.35em;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 215, 0, 0.3);
+      padding-bottom: 12px;
+    }
+    .student-stats-content { padding: 0; }
+    .stat-block {
+      margin-bottom: 18px;
+      padding: 14px 18px;
+      border-radius: 10px;
+      border-left: 4px solid;
+      background: rgba(0, 0, 0, 0.25);
+    }
+    .stat-block.excellent { border-left-color: #0f0; }
+    .stat-block.need-repeat { border-left-color: #ffaa00; }
+    .stat-block.most-mistakes { border-left-color: #ff6666; }
+    .stat-block-title {
+      font-weight: bold;
+      margin-bottom: 8px;
+      font-size: 1.05em;
+    }
+    .stat-block.excellent .stat-block-title { color: #7cfc00; }
+    .stat-block.need-repeat .stat-block-title { color: #ffaa00; }
+    .stat-block.most-mistakes .stat-block-title { color: #ff8888; }
+    .stat-block-list { margin: 8px 0 0 0; padding-left: 0; line-height: 1.8; color: #ddd; list-style: none; }
+    .stat-block-list li { margin-bottom: 10px; padding-left: 8px; border-left: 2px solid rgba(255,255,255,0.1); }
+    .student-stats-footer {
+      font-size: 0.9em;
+      color: #999;
+      margin-top: 20px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+      text-align: center;
+    }
+
+    .giant-key {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 140px;
+      cursor: pointer;
+      z-index: 9005;
+      filter: drop-shadow(0 0 20px gold);
+      animation: keyPulse 1s infinite alternate;
+    }
+    @keyframes keyPulse {
+      from { transform:translate(-50%,-50%) scale(1); }
+      to   { transform:translate(-50%,-50%) scale(1.2); }
+    }
+
+    #backpack-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 80px;
+      height: 80px;
+      background: #222 url('https://img.icons8.com/color/96/backpack.png') no-repeat center center;
+      background-size: 60%;
+      border: 3px solid var(--accent-color);
+      border-radius: 50%;
+      cursor: pointer;
+      z-index: 9005;
+      box-shadow: 0 0 15px rgba(0,0,0,0.8);
+      transition: transform 0.2s;
+    }
+    #backpack-btn:hover { transform: scale(1.1); }
+
+    .backpack-wiggle { animation: wiggle 0.5s ease-in-out; }
+    @keyframes wiggle {
+      0% { transform: rotate(0deg) scale(1); }
+      25% { transform: rotate(-15deg) scale(1.2); }
+      50% { transform: rotate(15deg) scale(1.2); }
+      75% { transform: rotate(-10deg) scale(1.1); }
+      100% { transform: rotate(0deg) scale(1); }
+    }
+
+    /* --- BACKPACK MODAL --- */
+    #backpack-modal {
+      display: none;
+      position: fixed;
+      bottom: 110px; 
+      right: 20px;
+      width: 300px;
+      min-height: 200px;
+      background: rgba(15, 15, 15, 0.95);
+      border: 2px solid var(--accent-color);
+      border-radius: 12px;
+      z-index: 9006;
+      padding: 0;
+      color: #fff;
+      text-align: left;
+      box-shadow: -5px 5px 20px rgba(0,0,0,0.8);
+    }
+
+    /* --- NEW: INSPECT MODAL --- */
+    #inspect-modal {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 320px;
+      min-height: 250px;
+      background: rgba(15,15,15,0.98);
+      border: 2px solid #00aaff;
+      border-radius: 10px;
+      z-index: 10005;
+      text-align: center;
+      padding: 15px;
+      box-shadow: 0 0 30px rgba(0,170,255,0.4);
+    }
+    #inspect-icon { font-size: 80px; margin: 20px 0; display: block; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
+    .inspect-btn {
+        margin-top: 15px;
+        background: #004466;
+        border-color: #00aaff;
+        color: #00aaff;
+        width: 100%;
+    }
+
+    /* --- DRAGGABLE WINDOWS STYLES --- */
+    .draggable-window {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(15, 15, 15, 0.95);
+      border: 2px solid var(--accent-color);
+      border-radius: 12px;
+      z-index: 9006;
+      width: 320px;
+      padding: 0;
+      color: #fff;
+      text-align: left;
+      box-shadow: 0 15px 40px rgba(0,0,0,0.9);
+      overflow: hidden;
+    }
+
+    .window-header {
+      padding: 8px 12px;
+      background: #333;
+      border-bottom: 1px solid #555;
+      cursor: move;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      color: #ffd700;
+      user-select: none;
+    }
+    #backpack-modal .window-header, #inspect-modal .window-header { cursor: default; }
+
+    .window-content { padding: 15px; }
+    .win-btn-close {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: #ff4444;
+      cursor: pointer;
+      display: inline-block;
+      margin-left: 5px;
+    }
+
+    #backpack-items-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 10px; }
+    .bp-item {
+      width: 50px;
+      height: 50px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid #555;
+      border-radius: 6px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 26px;
+      cursor: help;
+    }
+
+    .boss-active {
+      background: rgba(50, 0, 0, 0.9) !important;
+      border: 3px solid red !important;
+      animation: pulseRedBox 1s infinite alternate;
+    }
+    @keyframes pulseRedBox {
+      from { box-shadow: 0 0 10px red; }
+      to   { box-shadow: 0 0 30px red; }
+    }
+    #boss-status {
+      font-size: 1.4em;
+      color: #ff3333;
+      font-weight: bold;
+      margin: 10px;
+      text-shadow: 0 0 5px red;
+    }
+
+    /* TERMINAL */
+    .terminal-window {
+      background: #000;
+      font-family: 'Courier New', monospace;
+      text-align: left;
+      padding: 10px;
+      width: 100%;
+      height: 250px;
+      margin: 0;
+      overflow-y: auto;
+      box-shadow: inset 0 0 15px rgba(0, 255, 0, 0.2);
+    }
+    .term-line { margin: 2px 0; color: #0f0; font-size: 14px; }
+    .term-error { color: #ff3333; }
+    .term-success { color: #ffd700; font-weight: bold; }
+    .term-input-line { display: flex; color: #0f0; }
+    .term-input {
+      background: transparent;
+      border: none;
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 14px;
+      flex-grow: 1;
+      outline: none;
+      margin-left: 5px;
+    }
+
+    /* CHATBOT */
+    #chatbot-container {
+      position: fixed;
+      bottom: 90px;
+      left: 20px;
+      width: 300px;
+      background: rgba(0,0,0,0.9);
+      border: 2px solid #00ffff;
+      border-radius: 8px;
+      z-index: 9100;
+      display: none;
+      flex-direction: column;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.3);
+      font-size: 13px;
+    }
+    #chatbot-header {
+      background: #003333;
+      padding: 8px;
+      font-weight: bold;
+      color: #00ffff;
+      border-bottom: 1px solid #00ffff;
+      display: flex;
+      justify-content: space-between;
+    }
+    #chat-messages {
+      height: 150px;
+      overflow-y: auto;
+      padding: 10px;
+      text-align: left;
+    }
+    .chat-msg { margin-bottom: 6px; line-height: 1.3; }
+    .chat-msg.operator { color: #00ffff; }
+    .chat-msg.system { color: #ffd700; font-style: italic; }
+    .chat-msg.user { color: #aaa; }
+    .chat-send-row { display: flex; gap: 6px; padding: 8px; border-top: 1px solid #333; }
+    #chat-input { flex: 1; padding: 6px 8px; background: #111; border: 1px solid #555; color: #fff; border-radius: 4px; font-size: 12px; }
+    #chat-send-btn { padding: 6px 12px; font-size: 12px; cursor: pointer; background: #003333; color: #00ffff; border: 1px solid #00ffff; border-radius: 4px; }
+    #robot-operator-btn {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      width: 60px;
+      height: 60px;
+      background: rgba(0,0,0,0.8);
+      border: 2px solid #00ffff;
+      border-radius: 50%;
+      z-index: 9000;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.4);
+      transition: all 0.3s;
+    }
+    #robot-operator-btn:hover {
+      transform: scale(1.1);
+      box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+    }
+    #robot-operator-btn.has-messages::after {
+      content: '';
+      position: absolute;
+      top: -5px;
+      right: -5px;
+      width: 16px;
+      height: 16px;
+      background: #ff0000;
+      border-radius: 50%;
+      border: 2px solid #000;
+      animation: pulse-red 1s infinite;
+    }
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* MINIGAME */
+    #minigame-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.95);
+      z-index: 10000;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* CINEMATIC BANNER */
+    #cinematic {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      z-index: 12000;
+      display: none;
+      padding: 18px 22px;
+      border-radius: 14px;
+      background: rgba(0,0,0,0.9);
+      border: 2px solid var(--accent-color);
+      box-shadow: 0 0 35px rgba(255,215,0,0.25);
+      max-width: 700px;
+      width: 90%;
+      text-align: center;
+    }
+    #cinematic h3 { margin: 0 0 8px 0; color: var(--accent-color); }
+    #cinematic p { margin: 0; color: #fff; opacity: 0.95; }
+
+    /* EXIT FIREWORKS */
+    .fireworks {
+      font-size: 34px;
+      letter-spacing: 6px;
+      animation: firePulse 1.2s infinite alternate;
+      text-shadow: 0 0 12px rgba(255,215,0,0.65);
+    }
+    @keyframes firePulse {
+      from { transform: scale(1); opacity: 0.85; }
+      to   { transform: scale(1.06); opacity: 1; }
+    }
+
+    /* KEYPAD STYLES (ROOM 5) */
+    .keypad-container {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      width: 220px;
+      margin: 10px auto;
+      background: #222;
+      padding: 15px;
+      border-radius: 10px;
+      border: 2px solid #444;
+    }
+    .keypad-btn {
+      padding: 15px;
+      background: #333;
+      border: 1px solid #555;
+      color: white;
+      font-size: 18px;
+      border-radius: 5px;
+      cursor: pointer;
+      margin: 0;
+    }
+    .keypad-btn:active { background: var(--accent-color); color: black; }
+    .keypad-display {
+      width: 220px;
+      margin: 0 auto 10px auto;
+      padding: 10px;
+      background: #000;
+      color: #0f0;
+      font-family: monospace;
+      font-size: 1.5em;
+      text-align: center;
+      border: 2px solid #555;
+      border-radius: 5px;
+    }
+
+    @media (max-width: 860px) {
+      :root { --hud-h: 88px; }
+      #hud { font-size: 13px; }
+      #timer { font-size: 14px; }
+      button { font-size: 15px; }
+    }
+    @media (max-width: 520px) {
+      :root { --hud-h: 112px; }
+      #hud { gap: 6px 8px; }
+      #settingsPanel, #teacherInfoPanel { right: 10px; width: 90vw; max-width: 320px; }
+      body { padding-left: 10px; padding-right: 10px; }
+      #backpack-btn { width: 60px; height: 60px; bottom: 10px; right: 10px; }
+      #chatbot-container { bottom: 80px; left: 10px; width: 250px; }
+      .draggable-window { width: 90%; left: 5% !important; top: 100px !important; transform: none !important; }
+      #backpack-modal { right: 10px; bottom: 80px; }
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+
+<body>
+<!-- 🕵️‍♂️ SECRET: Αν βρεις αυτό το σχόλιο, τρέξε adminOverride() στην κονσόλα -->
+
+<div id="darkness-overlay"></div>
+
+<div id="access-denied">ACCESS DENIED</div>
+
+<div id="cinematic">
+  <h3 id="cinematic-title">EVENT</h3>
+  <p id="cinematic-text">...</p>
+</div>
+
+<div id="minigame-overlay">
+  <h2 style="color:#0f0;">⚠️ DECRYPTION PROTOCOL ⚠️</h2>
+  <p>Πάτα το σωστό πλήκτρο γρήγορα!</p>
+  <div id="minigame-target" style="font-size: 60px; font-weight: bold; color: yellow; margin: 20px;">X</div>
+  <div id="minigame-progress" style="width: 300px; height: 10px; border: 1px solid #555; background: #222;">
+    <div id="minigame-bar" style="width: 0%; height: 100%; background: #0f0;"></div>
+  </div>
+</div>
+
+<div id="clue-popup">
+  <h3 id="clue-title" style="margin: 0 0 10px 0; color: #33ff33;"></h3>
+  <p id="clue-message" style="font-size: 1.2em; margin-bottom: 20px;"></p>
+  <button onclick="closeCluePopup()">ΕΝΤΑΞΕΙ</button>
+</div>
+
+<div id="robot-operator-btn" onclick="toggleChatbot()" title="🤖 The Operator - Κάνε κλικ για να δεις τα μηνύματα">🤖</div>
+
+<div id="chatbot-container">
+  <div id="chatbot-header">
+    <span>🤖 The Operator</span>
+    <span onclick="toggleChatbot()" style="cursor:pointer;">_</span>
+  </div>
+  <div id="chat-messages">
+    <div class="chat-msg system">System initialized. Operator is online.</div>
+  </div>
+  <div class="chat-send-row">
+    <input type="text" id="chat-input" placeholder="Ρώτα τον Operator..." maxlength="200" autocomplete="off" onkeydown="if(event.key==='Enter') sendChatQuestion();">
+    <button type="button" id="chat-send-btn" onclick="sendChatQuestion()">Αποστολή</button>
+  </div>
+</div>
+
+<div id="backpack-btn" onclick="toggleBackpack()" title="Άνοιγμα Σακιδίου (Toolkit)"></div>
+
+<div id="backpack-modal">
+  <div class="window-header" id="backpack-header">
+    <span>🎒 HACKER TOOLKIT</span>
+    <span class="win-btn-close" onclick="toggleBackpack()"></span>
+  </div>
+  <div class="window-content">
+    <div id="backpack-items-list">
+      <span style="font-style:italic; font-size:12px; color:#aaa;">Scanning for assets...</span>
+    </div>
+    <button onclick="combineItems()" style="width:100%; margin-top:10px; font-size:12px; padding:5px; border:1px solid gold; color:gold; background:#333;">
+      🧩 Συνδυασμός Στοιχείων (Combine)
+    </button>
+  </div>
+</div>
+
+<div id="inspect-modal">
+    <div class="window-header">
+      <span>🔎 INSPECTION TOOL</span>
+      <span class="win-btn-close" onclick="document.getElementById('inspect-modal').style.display='none'"></span>
+    </div>
+    <div id="inspect-icon">📦</div>
+    <h3 id="inspect-title" style="color:#ffd700; margin:5px;">Item</h3>
+    <p id="inspect-desc" style="font-style:italic; color:#ccc;">...</p>
+    <div id="inspect-secret-area" style="display:none; color:lightgreen; border:1px dashed #444; padding:5px; margin-top:10px;"></div>
+    <button class="inspect-btn" onclick="revealSecret()">🔄 ΕΞΕΤΑΣΗ / ΓΥΡΙΣΜΑ</button>
+</div>
+
+<div id="hudWrapper">
+  <div id="hud">
+    <div class="hud-left">
+      <div id="playerInfo" class="hud-chip">👤 Agent: -</div>
+      <div id="difficultyIndicator" class="hud-chip"></div>
+      <div id="progress" class="hud-chip">Εκτός δωματίων</div>
+    </div>
+    <div class="hud-center">
+      <div id="integrity-container" title="System Integrity">
+        <div id="integrity-label">SYSTEM INTEGRITY</div>
+        <div id="integrity-bar"></div>
+      </div>
+      <div id="score" class="hud-chip">⭐ Σκορ: <span id="score-value">150</span></div>
+      <div id="keysHud" class="hud-chip">🔑</div>
+      <div id="timer" style="display:none;">⏳ 15:00</div>
+    </div>
+    <div class="hud-right">
+      <button id="settingsBtn" onclick="toggleSettings()">⚙ Ρυθμίσεις</button>
+      <button id="teacherInfoBtn" onclick="toggleTeacherInfo()">ℹ Για εκπαιδευτικούς</button>
+    </div>
+  </div>
+</div>
+
+<div id="teacherInfoPanel">
+  <h4>Πληροφορίες για εκπαιδευτικούς (Engagement Edition)</h4>
+  <ul>
+    <li><b>Scaffolding (Υποστηρικτικές παρεμβάσεις):</b> Αυτόματη βοήθεια από τον "Operator".</li>
+    <li><b>Situated Learning (Ενταγμένη μάθηση):</b> Draggable παράθυρα (προσομοίωση OS).</li>
+    <li><b>Emotional (Συναισθηματικό):</b> Panic Mode όταν πέφτει το Integrity.</li>
+    <li><b>Behavioral / Parsons (Συμπεριφορικό):</b> Drag-and-drop κώδικα (Δωμάτιο 6).</li>
+    <li><b>Inspection (Επιθεώρηση):</b> Εξερεύνηση στοιχείων στο Backpack (κρυφά στοιχεία).</li>
+    <li><b>Interconnectivity (Διασύνδεση):</b> Τα δωμάτια απαιτούν στοιχεία από προηγούμενα.</li>
+  </ul>
+</div>
+
+<div id="settingsPanel">
+  <strong>Ρυθμίσεις</strong><br>
+  <label><input type="checkbox" id="muteSoundsCheckbox" onchange="toggleMuteSounds()"> Σίγαση ήχων & μουσικής</label><br>
+  <label><input type="checkbox" id="muteSpeechCheckbox" onchange="toggleMuteSpeech()"> Σίγαση ομιλίας</label><br>
+  <button type="button" onclick="testSound()" style="margin-top:6px; padding:4px 8px; font-size:12px;">🔊 Δοκίμασε ήχο</button>
+  <div style="margin-top:6px;">
+    Μέγεθος κειμένου:
+    <button onclick="changeFontSize(-0.1)" style="padding:2px 6px; font-size:11px;">A-</button>
+    <button onclick="changeFontSize(0.1)"  style="padding:2px 6px; font-size:11px;">A+</button>
+  </div>
+</div>
+
+<div id="progressMap"></div>
+
+<div id="splash">
+  <h1 style="color: #ffd700; text-shadow: 0 0 20px #ffd700;">🔒 Escape Room Πληροφορικής</h1>
+  <p style="color: #ffd700; font-size: 1.2em; margin-top: 0.3em; text-shadow: 0 0 12px #ffd700;">The Wiper Virus</p>
+  <button onclick="enterGame()">Είσοδος</button>
+</div>
+
+<div id="instructions" class="screen">
+  <h1>🎯 Στόχος του Escape Room</h1>
+  <div class="text-box">
+    <p><b>Στόχος:</b> Συλλογή στοιχείων → Ενεργοποίηση μηχανισμού → Αποκατάσταση/Εκτέλεση.</p>
+    <p>Πράκτορα, το σύστημα δέχεται επίθεση. Ο "Operator" θα σε βοηθάει.</p>
+    <ul style="text-align:left; max-width:600px; margin:0 auto;">
+      <li>Οι Server είναι κλειδωμένοι. Ψάξε για <b>ΣΤΟΙΧΕΙΑ</b> (📄) στο χώρο.</li>
+      <li>Χρησιμοποίησε το <b>Terminal</b> για εντολές.</li>
+      <li>Επιθεώρησε τα αντικείμενα στο <b>Σακίδιο</b> για κρυμμένους κωδικούς!</li>
+      <li><b>ΠΡΟΣΟΧΗ:</b> Αν το Integrity πέσει κάτω από 30%, το σύστημα μπαίνει σε Panic Mode.</li>
+    </ul>
+    <p style="color:#ff6b6b; font-style:italic;">🔴 WARNING: Η ακεραιότητα του συστήματος πέφτει με κάθε λάθος!</p>
+  </div>
+  <button onclick="goTo('playerSetup')">ΑΠΟΔΟΧΗ ΑΠΟΣΤΟΛΗΣ</button>
+</div>
+
+<div id="playerSetup" class="screen">
+  <h1>Ρύθμιση Προφίλ Παίκτη</h1>
+  <div class="text-box"><p>Συμπλήρωσε το ψευδώνυμό σου και διάλεξε avatar.</p></div>
+  <div class="text-box">
+    <label>Codename (Ψευδώνυμο):<br><input type="text" id="playerNameInput" placeholder="π.χ. Neo" style="padding:6px; margin-top:5px; width:60%;"></label>
+  </div>
+  <div class="text-box">
+    <p>Επίλεξε Role/Avatar:</p>
+    <div id="avatarContainer">
+      <div class="avatar-option" data-avatar="hacker" onclick="selectAvatar('hacker', this)">💻 White Hat</div>
+      <div class="avatar-option" data-avatar="robot"  onclick="selectAvatar('robot', this)">🤖 Bot Net</div>
+      <div class="avatar-option" data-avatar="scientist" onclick="selectAvatar('scientist', this)">🛡️ SysAdmin</div>
+    </div>
+  </div>
+  <button onclick="savePlayerSetup()">ΣΥΝΔΕΣΗ</button>
+</div>
+
+<div id="intro" class="screen">
+  <h1>⚠️ SECURITY BREACH DETECTED</h1>
+  <div class="text-box"><p>Ο ιός έχει κλειδώσει το εργαστήριο. Ο Operator συνδέεται...</p></div>
+  <div class="media-container">
+    <video width="560" height="315" controls preload="metadata" poster="" style="max-width:100%;">
+      <source src="intro.mp4" type="video/mp4">
+      Το πρόγραμμα αναπαραγωγής δεν υποστηρίζεται ή το αρχείο intro.mp4 δεν βρέθηκε. Βάλτε το κατεβασμένο βίντεο ως intro.mp4 στο ίδιο φάκελο με το αρχείο HTML.
+    </video>
+    <div class="text-box blinking">🎥 Ανάλυσε το βίντεο για τρωτά σημεία!</div>
+  </div>
+  <button onclick="startGame()">ΕΚΤΕΛΕΣΗ (START)</button>
+  <button onclick="goTo('glossary')">Βάση γνώσης (Γλωσσάρι)</button>
+</div>
+
+<div id="room1" class="screen">
+  <h2>Δωμάτιο 1: Κωδικός στο τερματικό</h2>
+  <div class="difficulty-badge difficulty-easy">🟢 Level 1</div>
+  <div class="text-box story-box story-highlight" id="story-room1">
+    Το τερματικό ελέγχου δεν ανταποκρίνεται. Για να επανέλθει το σύστημα χρειάζεται σωστή εντολή εκτέλεσης.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Ψάξε για οδηγίες Python στο δωμάτιο. Υπάρχει και ένα Post-It που μπορεί να χρειαστείς αργότερα.</span>
+  </div>
+
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 70%; left: 20%;" title="Στοιχείο"
+         onclick="pickupItem('room1', '🟨', 'Post-It: Port 8080 (Θα το χρειαστείς αργότερα!)', this)">🟨</div>
+
+    <div class="hotspot" style="top: 25%; left: 60%;" title="Στοιχείο"
+         onclick="pickupItem('room1', '🐍', 'Python Manual: Για να εμφανίσεις κείμενο, γράψε print και το μήνυμα σε παρενθέσεις.', this)">🐍</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room1" style="top: 35%; left: 50%; width:90px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room1', this)">🔒</div>
+
+    <div class="hotspot" style="top: 85%; left: 60%;" title="Ανάλυση" onclick="examine('Κουτάκι καφεΐνης. Απαραίτητο.', '🥤')">🥤</div>
+    <div class="hotspot" style="top: 20%; left: 80%;" title="Ανάλυση" onclick="examine('Ο πίνακας έχει σβησμένες πράξεις.', '🧮')">🧮</div>
+    <div class="hotspot" style="top: 75%; left: 35%;" title="Ανάλυση" onclick="examine('Μπερδεμένα καλώδια δικτύου.', '🔌')">🔌</div>
+  </div>
+
+  <div id="giant-key-room1" class="giant-key" onclick="goToNextFrom('room1', 'room2')">🗝️</div>
+
+  <div id="qblock-room1" class="draggable-window">
+    <div class="window-header" id="term-header">
+      <span>ΤΕΡΜΑΤΙΚΟ ΕΝΕΡΓΟ</span>
+      <span class="win-btn-close" onclick="document.getElementById('qblock-room1').style.display='none'"></span>
+    </div>
+    <div class="window-content" style="padding:0;">
+      <p id="obj-room1" class="room-objective" style="display:none; font-weight:bold; margin:8px 10px 6px; padding:0;"></p>
+      <p id="qtext-room1" class="hidden">Πρωτόκολλο εκκίνησης: γράψε την εντολή που θα εμφανίσει το "Hello".</p>
+
+      <div class="terminal-window" id="term-room1" onclick="document.getElementById('term-input-1').focus()">
+        <div id="term-output-1">
+          <div class="term-line">----------------------------------------</div>
+          <div class="term-line">ΕΚΚΙΝΗΣΗ ΣΥΣΤΗΜΑΤΟΣ…</div>
+          <div class="term-line">Σφάλμα: Δεν εντοπίστηκε έξοδος.</div>
+          <div class="term-line">Αναμενόμενο αποτέλεσμα: hello</div>
+          <div class="term-line"></div>
+          <div class="term-line">Το σύστημα περιμένει εντολή.</div>
+          <div class="term-line">----------------------------------------</div>
+        </div>
+        <div class="term-input-line">
+          <span>root@sys:~$</span>
+          <input type="text" id="term-input-1" class="term-input" autocomplete="off">
+        </div>
+      </div>
+
+      <div style="padding:10px;">
+        <p id="feedback1"></p>
+        <div id="key-earned-room1" class="key-earned"></div>
+        <button onclick="showHint('room1')">💡 Υπόδειξη</button>
+        <button onclick="repeatQuestion('room1')">🎙️ Επανάληψη μηνύματος συστήματος</button>
+      </div>
+    </div>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room2" class="screen">
+  <h2>Δωμάτιο 2: Αντιστοίχισε τους όρους</h2>
+  <div class="difficulty-badge difficulty-easy">🟢 Level 1</div>
+  <div class="text-box story-box story-highlight" id="story-room2">
+    Το δίκτυο έχει αποσυνδεθεί. Τα modules πρωτοκόλλων βρίσκονται σε λάθος θέση.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Βρες το Manual Δικτύου και τη Σημείωση για να μάθεις τις αντιστοιχίες IP, DNS, HTTP.</span>
+  </div>
+
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 15%; left: 75%;" title="Στοιχείο"
+         onclick="pickupItem('room2', '📘', 'Manual Δικτύου: IP=Διεύθυνση, DNS=Ονόματα', this)">📘</div>
+    <div class="hotspot" style="top: 25%; left: 50%;" title="Στοιχείο"
+         onclick="pickupItem('room2', '📄', 'Σημείωση δικτύου: IP=διεύθυνση, DNS=ονόματα, HTTP=πρωτόκολλο.', this)">📄</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room2" style="top: 45%; left: 15%; width:80px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room2', this)">🔒</div>
+
+    <div class="hotspot" style="top: 60%; left: 10%;" title="Ανάλυση" onclick="examine('Ένα πλαστικό φυτό.', '🪴')">🪴</div>
+    <div class="hotspot" style="top: 85%; left: 50%;" title="Ανάλυση" onclick="examine('Μια παλιά καρέκλα.', '🪑')">🪑</div>
+    <div class="hotspot" style="top: 10%; left: 40%;" title="Ανάλυση" onclick="examine('Λάμπα φθορίου που τρεμοπαίζει.', '💡')">💡</div>
+  </div>
+
+  <div id="giant-key-room2" class="giant-key" onclick="triggerMinigame('room3')">🗝️</div>
+
+  <div id="qblock-room2" style="display:none;">
+    <p id="obj-room2" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div class="media-container"><img src="images/network.png" alt="Δίκτυο" width="300"></div>
+    <div class="text-box"><p id="qtext-room2">Διαδικασία αποκατάστασης: σύρε κάθε πρωτόκολλο στη σωστή περιγραφή.</p></div>
+    
+    <div class="drag-container" id="room2-pool">
+      <div class="drag-item" draggable="true" id="IP">IP</div>
+      <div class="drag-item" draggable="true" id="DNS">DNS</div>
+      <div class="drag-item" draggable="true" id="HTTP">HTTP</div>
+    </div>
+    
+    <div class="drag-container">
+      <div class="drop-zone" data-answer="IP">Διεύθυνση διαδικτύου</div>
+      <div class="drop-zone" data-answer="DNS">Σύστημα ονομάτων χώρου</div>
+      <div class="drop-zone" data-answer="HTTP">Πρωτόκολλο επικοινωνίας</div>
+    </div>
+    <button onclick="checkRoom2()">ΕΠΑΝΑΦΟΡΑ ΣΥΝΔΕΣΗΣ</button>
+    <button onclick="resetRoom2()">Επαναφορά</button>
+    <p id="feedback2"></p>
+    <div id="key-earned-room2" class="key-earned"></div>
+    <p id="hint-room2" class="hint-text"></p>
+    <button onclick="showHint('room2')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room2')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room3" class="screen">
+  <h2>Δωμάτιο 3: Binary Encoding</h2>
+  <div class="difficulty-badge difficulty-easy">🟢 Level 1</div>
+  <div class="text-box story-box story-highlight" id="story-room3">
+    Σφάλμα κωδικοποίησης. Το σύστημα απαιτεί σωστή δυαδική αναπαράσταση για να δεχτεί το σήμα.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Χρειάζεσαι τον αριθμό 75. Ψάξε για ASCII Chart και Σημείωση δυαδικού στο δωμάτιο.</span>
+  </div>
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 30%; left: 40%;" title="Στοιχείο"
+         onclick="pickupItem('room3', '📌', 'ASCII Chart: K = 75', this)">📌</div>
+    <div class="hotspot" style="top: 45%; left: 55%;" title="Στοιχείο"
+         onclick="pickupItem('room3', '📋', 'Σημείωση δυαδικού: Ο αριθμός 75 αντιστοιχεί στο γράμμα K.', this)">📋</div>
+    <div class="hotspot hotspot-lock" id="lock-room3" style="top: 65%; left: 70%;" title="Κλειδαριά"
+         onclick="attemptUnlock('room3', this)">🔒</div>
+         
+    <div class="hotspot" style="top: 20%; left: 10%;" title="Log File"
+         onclick="examine('LOG FILE #1: Ο προηγούμενος admin προσπάθησε να αποκρυπτογραφήσει τα αρχεία. Έλεγε κάτι για το ότι τα μηχανήματα μιλάνε μόνο με 0 και 1...', '📂')"
+         ondblclick="showDeepScan('Σημείωση: Ο αριθμός 75 σε δυαδικό αντιστοιχεί στο γράμμα K (ASCII).')">📂</div>
+
+    <div class="hotspot" style="top: 85%; left: 20%;" title="Ανάλυση" onclick="examine('Στοίβα με παλιά περιοδικά.', '📚')">📚</div>
+    <div class="hotspot" style="top: 20%; left: 90%;" title="Ανάλυση" onclick="examine('Παράθυρο με θέα.', '🌧️')">🌧️</div>
+    <div class="hotspot" style="top: 50%; left: 10%;" title="Ανάλυση" onclick="examine('Ένας κάδος σκουπιδιών.', '🗑️')">🗑️</div>
+  </div>
+  <div id="giant-key-room3" class="giant-key" onclick="goToNextFrom('room3', 'room4')">🗝️</div>
+  
+  <div id="qblock-room3" style="display:none;">
+    <p id="obj-room3" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div class="text-box"><p id="qtext-room3">Αποκωδικοποίηση: ενεργοποίησε τα σωστά bits για να φτάσεις τον στόχο.</p></div>
+    
+    <div class="bit-container">
+        <button class="bit-btn" onclick="toggleBit(7, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(6, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(5, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(4, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(3, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(2, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(1, this)">0</button>
+        <button class="bit-btn" onclick="toggleBit(0, this)">0</button>
+    </div>
+    
+    <div class="text-box">
+        Decimal Value: <span id="bit-val" class="bit-display">0</span>
+    </div>
+    
+    <button onclick="checkBits()">ΚΩΔΙΚΟΠΟΙΗΣΗ & ΑΠΟΣΤΟΛΗ</button>
+
+    <p id="feedback3"></p>
+    <div id="key-earned-room3" class="key-earned"></div>
+    <p id="hint-room3" class="hint-text"></p>
+    <button onclick="showHint('room3')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room3')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room4" class="screen">
+  <h2>Δωμάτιο 4: Υλικό Υπολογιστή (Dark Sector)</h2>
+  <div class="difficulty-badge difficulty-medium">🟡 Level 2</div>
+  <div class="text-box story-box story-highlight" id="story-room4">
+    Το Firewall είναι ενεργό και μπλοκάρει την πρόσβαση. Χρειάζεται σωστό Port και μετά επιλογή κατάλληλου μέσου αποθήκευσης.<br>
+    <span style="color:red">ΠΡΟΣΟΧΗ: Διακοπή ρεύματος! Χρησιμοποίησε τον φακό.</span><br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Χρησιμοποίησε το Toolkit (Συνδυασμός) για να ενεργοποιήσεις την είσοδο Port.</span>
+  </div>
+
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 10%; left: 15%;" title="Στοιχείο"
+         onclick="pickupItem('room4', '📝', 'Note: Η RAM αδειάζει όταν κλείσει το ρεύμα.', this)">📝</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room4" style="top: 75%; left: 35%; width:100px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room4', this)">🔒</div>
+
+    <div class="hotspot" style="top: 50%; left: 50%;" title="Ανάλυση" onclick="examine('Ανεμιστήρας CPU στο full.', '❄️')">❄️</div>
+    <div class="hotspot" style="top: 85%; left: 80%;" title="Ανάλυση" onclick="examine('Κουτί με παλιές βίδες.', '🔩')">🔩</div>
+    <div class="hotspot" id="note-room4" style="top: 60%; left: 20%; width:70px; height:70px; font-size:1.8em; border:2px solid #ffd700; display:none;" title="Σημείωση τεχνικού - Κάνε κλικ!" onclick="pickupItem('room4', '📋', 'Σημείωση τεχνικού: Μόνιμη αποθήκευση – μόνο ο σκληρός δίσκος (HDD/SSD) διατηρεί δεδομένα χωρίς ρεύμα.', this)">📋</div>
+  </div>
+
+  <div id="giant-key-room4" class="giant-key" onclick="goToNextFrom('room4', 'room5')">🗝️</div>
+
+  <div id="qblock-room4" style="display:none;">
+    <p id="obj-room4" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div id="room4-part1">
+      <div class="text-box" style="border-color:red;">🔒 FIREWALL ACTIVE.</div>
+      <p>Απαιτείται αριθμός θύρας (Port) για είσοδο. Χρησιμοποίησε το Toolkit (Συνδυασμός) για να ενεργοποιηθεί η εισαγωγή.</p>
+      <input type="text" inputmode="numeric" id="input-port-room4" placeholder="XXXX" disabled>
+      <button id="btn-port-room4" onclick="checkPortRoom4()" disabled>ΑΝΟΙΓΜΑ ΠΡΟΣΒΑΣΗΣ</button>
+      <p id="port-feedback" class="wrong"></p>
+    </div>
+
+    <div id="room4-part2" style="display:none;">
+      <div class="media-container"><img src="images/hardware.png" alt="Hardware" width="300"></div>
+      <div class="text-box"><p id="qtext-room4">Διαγνωστικός έλεγχος αποθήκευσης: ποιο εξάρτημα διατηρεί δεδομένα όταν κλείσει το ρεύμα;</p></div>
+      <div class="answers" id="answers-room4">
+        <button onclick="checkAnswer('feedback4', true, null, 'room4')">Σκληρός δίσκος (HDD / SSD)</button>
+        <button onclick="checkAnswer('feedback4', false, null, 'room4')">Επεξεργαστής (CPU)</button>
+        <button onclick="checkAnswer('feedback4', false, null, 'room4')">Κάρτα γραφικών (GPU)</button>
+      </div>
+      <p id="feedback4"></p>
+      <div id="key-earned-room4" class="key-earned"></div>
+      <p id="hint-room4" class="hint-text"></p>
+      <button onclick="showHint('room4')">💡 Υπόδειξη</button>
+      <button onclick="repeatQuestion('room4')">🎙️ Επανάληψη μηνύματος</button>
+    </div>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room5" class="screen">
+  <h2>Δωμάτιο 5: Ασφαλής Κωδικός</h2>
+  <div class="difficulty-badge difficulty-medium">🟡 Level 2</div>
+  <div class="text-box story-box story-highlight" id="story-room5">
+    Απαιτείται επιβεβαίωση διαχειριστή. Ο ιός ελέγχει για αδύναμες διαδικασίες πρόσβασης.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Υπάρχει ένα τσαλακωμένο χαρτί στο δωμάτιο. Κάνε Inspect στο Toolkit για να δεις το κρυφό μήνυμα.</span>
+  </div>
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 55%; left: 10%;" title="Στοιχείο"
+         onclick="pickupItem('room5', '📄', 'Τσαλακωμένο χαρτί... (Κάνε Inspect στο σακίδιο!)', this, 'PASSWORD: 1234')">📄</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room5" style="top: 40%; left: 80%; width:90px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room5', this)">🔒</div>
+
+    <div class="hotspot" style="top: 90%; left: 50%;" title="Ανάλυση" onclick="examine('Ψίχουλα στο πληκτρολόγιο.', '🍪')"
+         ondblclick="showDeepScan('Σημείωση: Ο κωδικός βρίσκεται σε χαρτί που χρειάζεται Inspect στο Σακίδιο.')">🍪</div>
+    <div class="hotspot" style="top: 10%; left: 30%;" title="Ανάλυση" onclick="examine('Κάμερα ασφαλείας.', '📹')">📹</div>
+    <div class="hotspot" style="top: 70%; left: 90%;" title="Ανάλυση" onclick="examine('Το ποντίκι κολλάει.', '🖱️')">🖱️</div>
+  </div>
+
+  <div id="giant-key-room5" class="giant-key" onclick="goToNextFrom('room5', 'room6')">🗝️</div>
+
+  <div id="qblock-room5" style="display:none;">
+    <p id="obj-room5" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div class="media-container"><img src="images/password.png" alt="Password" width="300"></div>
+    <div class="text-box"><p id="qtext-room5">ADMIN ACCESS: εισαγωγή τετραψήφιου κωδικού επαλήθευσης.</p></div>
+
+    <input type="text" id="keypad-display" class="keypad-display" readonly placeholder="----">
+    
+    <div class="keypad-container">
+      <button class="keypad-btn" onclick="kpPress(1)">1</button>
+      <button class="keypad-btn" onclick="kpPress(2)">2</button>
+      <button class="keypad-btn" onclick="kpPress(3)">3</button>
+      <button class="keypad-btn" onclick="kpPress(4)">4</button>
+      <button class="keypad-btn" onclick="kpPress(5)">5</button>
+      <button class="keypad-btn" onclick="kpPress(6)">6</button>
+      <button class="keypad-btn" onclick="kpClear()" style="background:#500;">CLR</button>
+      <button class="keypad-btn" onclick="kpPress(0)">0</button>
+      <button class="keypad-btn" onclick="kpEnter()" style="background:#050;">ENT</button>
+    </div>
+
+    <p id="feedback5"></p>
+    <div id="key-earned-room5" class="key-earned"></div>
+    <p id="hint-room5" class="hint-text"></p>
+    <button onclick="showHint('room5')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room5')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room6" class="screen">
+  <h2>Δωμάτιο 6: Μικρός Αλγόριθμος (Parsons)</h2>
+  <div class="difficulty-badge difficulty-medium">🟡 Level 2</div>
+  <div class="text-box story-box story-highlight" id="story-room6">
+    Ο αλγόριθμος εκτελείται με σφάλμα επειδή η ροή είναι ανακατεμένη.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Βρες το Hint στο δωμάτιο για να μάθεις τη σωστή σειρά.</span>
+  </div>
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 25%; left: 30%;" title="Στοιχείο"
+         onclick="pickupItem('room6', '👨‍🏫', 'Hint: Πρώτα αρχικοποιούμε, μετά Loop, μετά Print.', this)">👨‍🏫</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room6" style="top: 70%; left: 60%;" title="Κλειδαριά"
+         onclick="attemptUnlock('room6', this)">🔒</div>
+
+    <div class="hotspot" style="top: 40%; left: 10%;" title="Ανάλυση" onclick="examine('Προτζέκτορας.', '📽️')">📽️</div>
+    <div class="hotspot" style="top: 90%; left: 40%;" title="Ανάλυση" onclick="examine('Σφουγγάρι.', '🧽')">🧽</div>
+    <div class="hotspot" style="top: 10%; left: 80%;" title="Ανάλυση" onclick="examine('Ρολόι.', '🕰️')">🕰️</div>
+  </div>
+
+  <div id="giant-key-room6" class="giant-key" onclick="goToNextFrom('room6', 'room7')">🗝️</div>
+
+  <div id="qblock-room6" style="display:none;">
+    <p id="obj-room6" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div class="text-box"><p id="qtext-room6">Αναδιάταξη ροής: σύρε τις εντολές στη σωστή σειρά εκτέλεσης.</p></div>
+    
+    <div class="parsons-container">
+        <div id="parsons-source" class="drag-container" style="min-height:100px; background:rgba(0,0,0,0.3); width:100%; border:1px solid #555;">
+            <div class="parsons-line" draggable="true" id="p1">print(total)</div>
+            <div class="parsons-line" draggable="true" id="p2">total = 0</div>
+            <div class="parsons-line" draggable="true" id="p3">for i in range(3):</div>
+            <div class="parsons-line" draggable="true" id="p4">total = total + i</div>
+        </div>
+        
+        <div style="font-size:20px;">⬇️</div>
+        
+        <div id="parsons-target" class="parsons-drop-area"></div>
+    </div>
+    
+    <button onclick="checkParsons()">ΕΚΤΕΛΕΣΗ</button>
+    <p id="feedback6"></p>
+    <div id="key-earned-room6" class="key-earned"></div>
+    <p id="hint-room6" class="hint-text"></p>
+    <button onclick="showHint('room6')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room6')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room7" class="screen">
+  <h2>Δωμάτιο 7: Επανάληψη σε Python</h2>
+  <div class="difficulty-badge difficulty-medium">🟡 Level 2</div>
+  <div class="text-box story-box story-highlight" id="story-room7">
+    Οι καταγραφές δείχνουν έξοδο από επανάληψη με βήμα. Πρέπει να προβλέψεις την έξοδο για να συνεχίσεις.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Έλεγξε την οθόνη προσομοιωτή στο δωμάτιο για να δεις την έξοδο. Μην ξεχάσεις να μαζέψεις το Fragment για το Δωμάτιο 9.</span>
+  </div>
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 80%; left: 50%;" title="Στοιχείο"
+         onclick="pickupItem('room7', '🤖', 'Robot: Step=2 σημαίνει πηδάμε αριθμούς (0, 2...)', this)">🤖</div>
+
+    <div class="hotspot" style="top: 35%; left: 45%;" title="Στοιχείο"
+         onclick="pickupItem('room7', '🔎', 'Log Fragment A: Μέρος 1 από 3 για το κλειδί βάσης δεδομένων. Θα το χρειαστείς στο Δωμάτιο 9 (Combine).', this)">🔎</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room7" style="top: 30%; left: 85%;" title="Κλειδαριά"
+         onclick="attemptUnlock('room7', this)">🔒</div>
+
+    <div class="hotspot" style="top: 15%; left: 10%;" title="Log File"
+         onclick="examine('LOG FILE #2: Οι επαναλήψεις κολλάνε. Πρέπει να βρω τρόπο να κάνω skip τους ζυγούς αριθμούς... ή μήπως τους μονούς;', '📂')">📂</div>
+    <div class="hotspot" id="simulator-room7" style="top: 20%; left: 70%; display:none;" title="Οθόνη εξόδου"
+         onclick="examine('Οθόνη προσομοιωτή: range(0, 5, 2) → Έξοδος: 0 2 4', '🖥️')">🖥️</div>
+
+    <div class="hotspot" style="top: 10%; left: 20%;" title="Ανάλυση" onclick="examine('Μπαταρίες.', '🔋')">🔋</div>
+    <div class="hotspot" style="top: 60%; left: 10%;" title="Ανάλυση" onclick="examine('Σχέδια.', '📐')">📐</div>
+    <div class="hotspot" style="top: 50%; left: 70%;" title="Ανάλυση" onclick="examine('Κατσαβίδι.', '🔧')">🔧</div>
+  </div>
+
+  <div id="giant-key-room7" class="giant-key" onclick="goToNextFrom('room7', 'room8')">🗝️</div>
+
+  <div id="qblock-room7" style="display:none;">
+    <p id="obj-room7" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div class="media-container"><img src="images/loop.png" alt="Loop" width="300"></div>
+    <div class="text-box"><p id="qtext-room7">Ανάλυση καταγραφής: ποια τιμή θα εμφανιστεί στην έξοδο;</p></div>
+    <div class="text-box" style="text-align:left;">
+      <pre style="text-align:left; background:rgba(0,0,0,0.6); padding:10px;">
+for i in range(0, 5, 2):
+    print(i, end=" ")</pre>
+    </div>
+    <div class="answers" id="answers-room7">
+      <button onclick="checkAnswer('feedback7', true, null, 'room7')">0 2 4 </button>
+      <button onclick="checkAnswer('feedback7', false, null, 'room7')">0 1 2 3 4 </button>
+      <button onclick="checkAnswer('feedback7', false, null, 'room7')">1 3 5 </button>
+    </div>
+    <p id="feedback7"></p>
+    <div id="key-earned-room7" class="key-earned"></div>
+    <p id="hint-room7" class="hint-text"></p>
+    <button onclick="showHint('room7')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room7')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room8" class="screen">
+  <h2>Δωμάτιο 8: Debugging</h2>
+  <div class="difficulty-badge difficulty-hard">🔴 Level 3</div>
+  <div class="text-box story-box story-highlight" id="story-room8">
+    Η διαδικασία ταυτοποίησης απέτυχε λόγω συντακτικού σφάλματος.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Χρειάζεσαι το Debugger Tool (USB stick) στο πάτωμα για να σαρώσεις τον κώδικα. Μην ξεχάσεις το Fragment για το Δωμάτιο 9.</span>
+  </div>
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 10%; left: 60%;" title="Στοιχείο"
+         onclick="pickupItem('room8', '🌡️', 'Θερμόμετρο: Χρησιμοποιούμε == για σύγκριση.', this)">🌡️</div>
+
+    <div class="hotspot" style="top: 40%; left: 15%;" title="Στοιχείο"
+         onclick="pickupItem('room8', '🧩', 'Cipher Fragment B: Μέρος 2 από 3 για το κλειδί βάσης δεδομένων. Θα το χρειαστείς στο Δωμάτιο 9 (Combine).', this)">🧩</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room8" style="top: 60%; left: 40%; width:80px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room8', this)">🔒</div>
+
+    <div class="hotspot" style="top: 90%; left: 10%;" title="Ανάλυση" onclick="examine('Χειριστήριο.', '🎛️')">🎛️</div>
+    <div class="hotspot" style="top: 30%; left: 90%;" title="Ανάλυση" onclick="examine('Παράθυρο.', '🪟')">🪟</div>
+    <div class="hotspot" style="top: 50%; left: 20%;" title="Ανάλυση" onclick="examine('Συναγερμός.', '🚨')">🚨</div>
+    <div class="hotspot" style="top: 80%; left: 65%; width:70px; height:70px; font-size:1.8em; border:2px solid #00ffff; animation: pulse-glow 2s infinite;" title="Debugger Tool (USB) - Κάνε κλικ!" onclick="pickupItem('room8', '🔌', 'Debugger Tool (USB stick): Σύρε το στην οθόνη κώδικα για σάρωση σφαλμάτων.', this)">🔌</div>
+  </div>
+
+  <div id="giant-key-room8" class="giant-key" onclick="goToNextFrom('room8', 'room9')">🗝️</div>
+
+  <div id="qblock-room8" style="display:none;">
+    <p id="obj-room8" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div id="room8-need-debugger" class="text-box">
+      <p>Χρειάζεσαι το <b>Debugger Tool</b> για να σαρώσεις τον κώδικα και να εντοπίσεις το σφάλμα. Βρες το USB stick στο δωμάτιο (στο πάτωμα) και πάτα παρακάτω όταν το έχεις.</p>
+      <button onclick="useDebuggerRoom8()">Εφαρμογή Debugger (σάρωση κώδικα)</button>
+      <button onclick="closePuzzleBackToRoom('room8')" style="margin-left:8px; background:#555;">Πίσω στο δωμάτιο</button>
+    </div>
+    <div id="room8-code-area" style="display:none;">
+      <div class="text-box"><p id="qtext-room8">Διαγνωστικός έλεγχος: κάνε κλικ στο σημείο που προκαλεί το σφάλμα.</p></div>
+      <div class="text-box" style="text-align:left; font-family:'Courier New', monospace; font-size:1.2em;">
+         <span class="code-token" onclick="checkBug(false, 'if', this)">if</span>
+         <span class="code-token" onclick="checkBug(false, 'password', this)">password</span>
+         <span class="code-token" onclick="checkBug(true, '=', this)">=</span> <span class="code-token" onclick="checkBug(false, 'string1234', this)">"1234"</span>
+         <span class="code-token" onclick="checkBug(false, 'colon', this)">:</span><br>
+         &nbsp;&nbsp;<span class="code-token" onclick="checkBug(false, 'print', this)">print("Access Granted")</span>
+      </div>
+      <div id="room8-tooltip"></div>
+    </div>
+
+    <p id="feedback8"></p>
+    <div id="key-earned-room8" class="key-earned"></div>
+    <p id="hint-room8" class="hint-text"></p>
+    <button onclick="showHint('room8')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room8')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room9" class="screen">
+  <h2>Δωμάτιο 9: Βάσεις δεδομένων</h2>
+  <div class="difficulty-badge difficulty-hard">🔴 Level 3</div>
+  <div class="text-box story-box story-highlight" id="story-room9">
+    Η βάση δεδομένων δεν επιστρέφει αποτελέσματα. Λείπει η σωστή εντολή ανάκτησης.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Ψάξε στον κάδο ανακύκλωσης για σκονάκι με υπόδειξη SQL. Χρειάζεσαι τα 3 Fragments (A, B, C) για Combine και το Master Key.</span>
+  </div>
+
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 25%; left: 80%;" title="Στοιχείο"
+         onclick="pickupItem('room9', '🗄️', 'SQL Manual: SELECT για ανάκτηση.', this)">🗄️</div>
+
+    <div class="hotspot" style="top: 20%; left: 10%;" title="Στοιχείο"
+         onclick="pickupItem('room9', '🗃️', 'Schema Fragment C: Μέρος 3 από 3 για το κλειδί βάσης. Στο Δωμάτιο 9 κάνε Combine και τα τρία θραύσματα για το κλειδί.', this)">🗃️</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room9" style="top: 75%; left: 20%; width:100px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room9', this)">🔒</div>
+
+    <div class="hotspot" style="top: 50%; left: 50%;" title="Ανάλυση" onclick="examine('Καλώδια Server.', '🔗')">🔗</div>
+    <div class="hotspot" style="top: 10%; left: 10%;" title="Ανάλυση" onclick="examine('Πυροσβεστήρας.', '🧯')">🧯</div>
+    <div class="hotspot" style="top: 90%; left: 90%;" title="Ανάλυση" onclick="examine('Σκληρός δίσκος.', '💾')">💾</div>
+    <div class="hotspot" style="top: 88%; left: 45%; width:80px; height:80px; font-size:2em; border:2px solid #ffd700; animation: pulse-glow 2s infinite;" title="Κάδος ανακύκλωσης - Σκονάκι μέσα!" onclick="pickupItem('room9', '📝', 'Σκονάκι SQL: Θυμήσου: SELECT για διάβασμα, INSERT για γράψιμο.', this)">🗑️</div>
+  </div>
+
+  <div id="giant-key-room9" class="giant-key" onclick="goToNextFrom('room9', 'room10')">🗝️</div>
+
+  <div id="qblock-room9" style="display:none;">
+    <p id="obj-room9" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div class="media-container"><img src="images/database.png" alt="db" width="300"></div>
+    <div class="text-box"><p id="qtext-room9">Ανάκτηση δεδομένων: πληκτρολόγησε στο τερματικό την εντολή που διαβάζει δεδομένα. (Ξαναδές το σκονάκι που μάζεψες στο toolkit αν ξέχασες την υπόδειξη.)</p></div>
+    <div class="text-box" style="text-align:left; font-family:monospace; background:#111; padding:8px;">
+      <span style="color:#0f0;">db&gt;</span> <input type="text" id="input-sql-room9" placeholder="εντολή..." style="width:180px; background:#222; color:#0f0; border:1px solid #333; padding:4px;" />
+      <button onclick="submitSqlRoom9()">Εκτέλεση</button>
+    </div>
+    <p id="feedback9"></p>
+    <div id="key-earned-room9" class="key-earned"></div>
+    <p id="hint-room9" class="hint-text"></p>
+    <button onclick="showHint('room9')">💡 Υπόδειξη</button>
+    <button onclick="repeatQuestion('room9')">🎙️ Επανάληψη μηνύματος</button>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+  <button onclick="goTo('glossary')">Γλωσσάρι</button>
+</div>
+
+<div id="room10" class="screen">
+  <h2 style="color:red; animation: blinker 0.5s infinite;">⚠️ FINAL NODE: SERVER CORE</h2>
+  <div class="difficulty-badge difficulty-boss">☠️ BOSS FIGHT</div>
+  <div class="text-box story-box story-highlight" id="story-room10">
+    Ο Wiper ξεκίνησε διαδικασία διαγραφής. Απαιτείται πρωτόκολλο αντιμετώπισης απειλής.<br>
+    <span style="color:#ffd700; font-size:0.9em;">💡 Βρες πρώτα το Intel στο δωμάτιο. Μετά χρησιμοποίησε το κλειδί για το τελικό στάδιο.</span>
+  </div>
+
+  <div class="interaction-layer">
+    <div class="hotspot" style="top: 50%; left: 50%;" title="Στοιχείο"
+         onclick="pickupItem('room10', '📧', 'Intel: Phishing creates urgency!', this)">📧</div>
+
+    <div class="hotspot hotspot-lock" id="lock-room10" style="top: 40%; left: 85%; width:100px; height:100px;" title="Κλειδαριά"
+         onclick="attemptUnlock('room10', this)">🔒</div>
+
+    <div class="hotspot" style="top: 80%; left: 20%;" title="Ανάλυση" onclick="examine('Χαρτιά με άσχετες σημειώσεις.', '📝')">📝</div>
+    <div class="hotspot" style="top: 10%; left: 60%;" title="Ανάλυση" onclick="examine('Επιγραφή ΕΞΟΔΟΣ.', '🚪')">🚪</div>
+    <div class="hotspot" style="top: 70%; left: 10%;" title="Ανάλυση" onclick="examine('Το πόμολο είναι χαλασμένο.', '🚫')">🚫</div>
+  </div>
+
+  <div id="giant-key-room10" class="giant-key" onclick="goToNextFrom('room10', 'exit')">🗝️</div>
+
+  <div id="qblock-room10" style="display:none;" class="boss-active text-box">
+    <p id="obj-room10" class="room-objective" style="display:none; font-weight:bold; margin:0 0 8px 0;"></p>
+    <div id="boss-status">VIRUS UPLOAD: <span id="boss-pct">0%</span></div>
+
+    <div id="boss-step-1">
+      <p><b>INBOX – Αποθήκη απειλών:</b> Διέγραψε το email που είναι Phishing (πίεση για άμεσο κλικ).</p>
+      <div class="email-inbox">
+        <div class="email-card" id="email-phishing">
+          <div class="email-from">support@urgent-bank.xx</div>
+          <div class="email-subject">Ο λογαριασμός κλείνει ΣΗΜΕΡΑ! Κλικ εδώ!</div>
+          <div class="email-preview">Πρέπει να επιβεβαιώσεις τα στοιχεία σου αμέσως αλλιώς ο λογαριασμός θα κλειδωθεί...</div>
+          <button class="email-delete" onclick="bossFightStep(1, true)">Διαγραφή</button>
+        </div>
+        <div class="email-card" id="email-safe1">
+          <div class="email-from">no-reply@gov.gr</div>
+          <div class="email-subject">Οι βαθμοί αναρτήθηκαν</div>
+          <div class="email-preview">Μπορείς να ελέγξεις τους βαθμολογικούς πίνακες στο gov.gr...</div>
+          <button class="email-delete" onclick="bossFightStep(1, false)">Διαγραφή</button>
+        </div>
+        <div class="email-card" id="email-safe2">
+          <div class="email-from">newsletter@school.edu</div>
+          <div class="email-subject">Ενημέρωση προγράμματος</div>
+          <div class="email-preview">Το νέο πρόγραμμα μαθημάτων θα αναρτηθεί την επόμενη εβδομάδα...</div>
+          <button class="email-delete" onclick="bossFightStep(1, false)">Διαγραφή</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="boss-step-2" style="display:none;">
+      <p><b>Πάνελ ασφαλείας:</b> Ενεργοποίησε το σύστημα που μπλοκάρει μη εξουσιοδοτημένες συνδέσεις.</p>
+      <div class="security-panel">
+        <div class="security-option" onclick="bossFightStep(2, false)"><span class="sec-icon">🛡️</span> Antivirus – σάρωση αρχείων</div>
+        <div class="security-option correct-option" onclick="bossFightStep(2, true)"><span class="sec-icon">🔥</span> Firewall – φραγή συνδέσεων</div>
+        <div class="security-option" onclick="bossFightStep(2, false)"><span class="sec-icon">🔔</span> IDS – παρακολούθηση</div>
+      </div>
+    </div>
+
+    <div id="boss-step-3" style="display:none;">
+      <p><b>Σύνδεση με server:</b> Επίλεξε το ασφαλές κανάλι για μετάδοση δεδομένων.</p>
+      <div class="protocol-choice">
+        <div class="protocol-option" onclick="bossFightStep(3, false)">http://secure-server.local – HTTP</div>
+        <div class="protocol-option correct-option" onclick="bossFightStep(3, true)">https://secure-server.local – HTTPS</div>
+      </div>
+    </div>
+
+    <p id="feedback10"></p>
+    <div id="key-earned-room10" class="key-earned"></div>
+  </div>
+
+  <button onclick="goTo('intro')">Μενού</button>
+</div>
+
+<div id="glossary" class="screen">
+  <h2>Γλωσσάρι Πληροφορικής</h2>
+  <div class="text-box">
+    <ul style="text-align:left; max-width:650px; margin:0 auto;">
+      <li><b>IP:</b> <a href="https://el.wikipedia.org/wiki/IP" target="_blank">Διεύθυνση διαδικτύου</a>.</li>
+      <li><b>DNS:</b> <a href="https://el.wikipedia.org/wiki/Domain_Name_System" target="_blank">Σύστημα ονομάτων χώρου</a>.</li>
+      <li><b>RAM:</b> <a href="https://el.wikipedia.org/wiki/RAM" target="_blank">Μνήμη τυχαίας προσπέλασης</a>.</li>
+      <li><b>Firewall:</b> <a href="https://el.wikipedia.org/wiki/Firewall" target="_blank">Τείχος προστασίας</a>.</li>
+      <li><b>Python:</b> <a href="https://el.wikipedia.org/wiki/Python" target="_blank">Γλώσσα προγραμματισμού</a>.</li>
+      <li><b>HDD / SSD:</b> <a href="https://el.wikipedia.org/wiki/%CE%A3%CE%BA%CE%BB%CE%B7%CF%81%CF%8C%CF%82_%CE%B4%CE%AF%CF%83%CE%BA%CE%BF%CF%82" target="_blank">Μονάδες αποθήκευσης</a>.</li>
+      <li><b>Phishing:</b> <a href="https://el.wikipedia.org/wiki/%CE%97%CE%BB%CE%B5%CE%BA%CF%84%CF%81%CE%BF%CE%BD%CE%B9%CE%BA%CF%8C_%C2%AB%CF%88%CE%AC%CF%81%CE%B5%CE%BC%CE%B1%C2%BB" target="_blank">Ηλεκτρονικό "ψάρεμα"</a>.</li>
+      <li><b>Αλγόριθμος:</b> <a href="https://el.wikipedia.org/wiki/%CE%91%CE%BB%CE%B3%CF%8C%CF%81%CE%B9%CE%B8%CE%BC%CE%BF%CF%82" target="_blank">Σειρά εντολών</a>.</li>
+    </ul>
+  </div>
+  <button onclick="goTo(lastScreen)">Επιστροφή</button>
+</div>
+
+<div id="exit" class="screen">
+  <h1>MISSION ACCOMPLISHED 🎉</h1>
+  <div class="media-container">
+    <img src="images/escape.png" alt="Απόδραση Escape Room" width="300">
+  </div>
+
+  <div class="text-box">
+    <div class="fireworks">✨🎆✨🎇✨</div>
+    <p id="exitCongrats"></p>
+    <p class="epilogue">Ο ιός εξουδετερώθηκε. Το εργαστήριο είναι ασφαλές. Η αποστολή ολοκληρώθηκε.</p>
+    <p>System Integrity: <span id="finalScore"></span> / <span id="maxScore"></span></p>
+    <p id="achievement"></p>
+  </div>
+
+  <div id="celebration"></div>
+
+  <div id="extraAchievements" class="text-box"></div>
+  <div id="report" class="text-box"></div>
+
+  <div id="studentStats" class="text-box student-stats-wrapper">
+    <h3 class="student-stats-title">📊 Ανάλυση Επιδόσεων ανά Node</h3>
+    <div id="studentStatsContent" class="student-stats-content"></div>
+  </div>
+
+  <div class="text-box">
+    <h3>Session Logs (JSON)</h3>
+    <textarea id="sessionLog" style="width:100%; height:180px; font-family: 'Courier New', monospace; font-size: 12px; white-space: pre; overflow-wrap: normal; overflow-x: auto;"></textarea>
+    <br>
+    <button onclick="downloadJSON()">📥 Λήψη JSON</button>
+    <button onclick="downloadCSV()">📥 Λήψη CSV (Excel)</button>
+    <button onclick="downloadCertificate()">🏆 Λήψη Πιστοποιητικού (PDF)</button>
+  </div>
+
+  <button onclick="restartGame()">Παίξε ξανά (REBOOT)</button>
+</div>
+
+<div id="gameOver" class="screen">
+  <h1 style="color: #ff0000; text-shadow: 0 0 20px #ff0000;">⚠️ SYSTEM FAILURE ⚠️</h1>
+  <div class="media-container">
+    <div style="font-size: 120px; animation: pulseRed 1s infinite;">💀</div>
+  </div>
+
+  <div class="text-box" style="background: rgba(100, 0, 0, 0.3); border: 3px solid #ff0000;">
+    <h2 style="color: #ff6666;">Ο χρόνος τελείωσε!</h2>
+    <p style="font-size: 1.2em; margin: 20px 0;">
+      Το σύστημα απέτυχε. Ο ιός έχει καταλάβει το εργαστήριο.
+    </p>
+    <p style="color: #ffd700; font-weight: bold; margin: 20px 0;">
+      Τι θέλεις να κάνεις;
+    </p>
+    
+    <div style="display: flex; gap: 20px; justify-content: center; margin-top: 30px; flex-wrap: wrap;">
+      <button onclick="restartGame()" style="background: #ff0000; padding: 15px 30px; font-size: 1.1em; border: 2px solid #fff;">
+        🔄 Προσπάθεια ξανά
+      </button>
+      <button onclick="continueWithPenalty()" style="background: #ffaa00; padding: 15px 30px; font-size: 1.1em; border: 2px solid #fff;">
+        ⚡ Συνέχεια με ποινή
+      </button>
+    </div>
+    
+    <p style="margin-top: 30px; font-size: 0.9em; color: #ccc;">
+      <strong>Σημείωση:</strong> Αν επιλέξεις "Συνέχεια με ποινή", θα χάσεις 50 πόντους αλλά θα μπορείς να συνεχίσεις από το σημείο που σταμάτησες.
+    </p>
+  </div>
+</div>
+
+<script>
+/* ------------------ LOGGING SYSTEM (THESIS) ------------------ */
+let actionLog = [];
+
+function logAction(type, room, details) {
+    const entry = {
+        timestamp: new Date().toISOString(),
+        elapsedTime: sessionStartTime ? Math.round((new Date() - sessionStartTime) / 1000) : 0,
+        type: type,
+        room: room,
+        details: details,
+        currentScore: score,
+        currentIntegrity: integrity
+    };
+    actionLog.push(entry);
+    console.log("LOG:", entry);
+}
+
+/* ------------------ CONFIG ------------------ */
+const KEY_DISPLAY_MS = 2000;
+const roomConfig = {
+  room1:  { title: "Python Injector",    baseScore: 10, wrongPenalty: 2, hintPenalty: 2, difficulty: "Level 1", diffEmoji: "🟢", skillArea: "Python",    difficultyKey: "easy", isDark: false },
+  room2:  { title: "Network Protocols",  baseScore: 10, wrongPenalty: 2, hintPenalty: 2, difficulty: "Level 1", diffEmoji: "🟢", skillArea: "Networks",  difficultyKey: "easy", isDark: false },
+  room3:  { title: "Binary Decryption",  baseScore: 10, wrongPenalty: 2, hintPenalty: 2, difficulty: "Level 1", diffEmoji: "🟢", skillArea: "Binary",    difficultyKey: "easy", isDark: false },
+  room4:  { title: "Server Hardware",    baseScore: 15, wrongPenalty: 3, hintPenalty: 3, difficulty: "Level 2", diffEmoji: "🟡", skillArea: "Hardware",  difficultyKey: "medium", isDark: true }, // Flashlight active
+  room5:  { title: "Security Clearance", baseScore: 15, wrongPenalty: 3, hintPenalty: 3, difficulty: "Level 2", diffEmoji: "🟡", skillArea: "Security",  difficultyKey: "medium", isDark: false },
+  room6:  { title: "Algorithm Debug",    baseScore: 15, wrongPenalty: 3, hintPenalty: 3, difficulty: "Level 2", diffEmoji: "🟡", skillArea: "Python",    difficultyKey: "medium", isDark: false },
+  room7:  { title: "Loop Iteration",     baseScore: 15, wrongPenalty: 3, hintPenalty: 3, difficulty: "Level 2", diffEmoji: "🟡", skillArea: "Python",    difficultyKey: "medium", isDark: false },
+  room8:  { title: "Logic Gates",        baseScore: 20, wrongPenalty: 5, hintPenalty: 4, difficulty: "Level 3", diffEmoji: "🔴", skillArea: "Logic",      difficultyKey: "hard", isDark: false },
+  room9:  { title: "SQL Injection",      baseScore: 20, wrongPenalty: 5, hintPenalty: 4, difficulty: "Level 3", diffEmoji: "🔴", skillArea: "Databases", difficultyKey: "hard", isDark: false },
+  room10: { title: "BOSS: The Wiper",    baseScore: 30, wrongPenalty: 5, hintPenalty: 0, difficulty: "BOSS",   diffEmoji: "☠️", skillArea: "Mixed",      difficultyKey: "hard", isDark: false } 
+};
+const totalRooms = Object.keys(roomConfig).length;
+const roomObjectives = {
+  room1: "Στόχος: Εκτέλεσε την εντολή που εμφανίζει \"Hello\" στο τερματικό.",
+  room2: "Στόχος: Επανατοποθέτησε τα πρωτόκολλα στους σωστούς ορισμούς.",
+  room3: "Στόχος: Ρύθμισε τα bits ώστε να παραχθεί η τιμή 75.",
+  room4: "Στόχος: Παράκαμψη Firewall (Port) και επιλογή σωστού εξαρτήματος αποθήκευσης.",
+  room5: "Στόχος: Εισαγωγή κωδικού επαλήθευσης.",
+  room6: "Στόχος: Αναδιάταξε τις εντολές στη σωστή σειρά εκτέλεσης.",
+  room7: "Στόχος: Υπολόγισε την έξοδο της επανάληψης με step=2.",
+  room8: "Στόχος: Εντόπισε το συντακτικό σφάλμα (κλικ στο λάθος σύμβολο).",
+  room9: "Στόχος: Εκτέλεσε σωστή εντολή ανάκτησης δεδομένων.",
+  room10: "Στόχος: Αναγνώριση απειλής → Ενεργοποίηση άμυνας → Ασφαλής μετάδοση."
+};
+
+let MAX_SCORE = 0;
+for (let id in roomConfig) MAX_SCORE += roomConfig[id].baseScore;
+
+let lastScreen = "intro";
+let score = 150; // Score starts at 150, penalties subtract from it
+let roomItemsFound = {};
+let inventory = [];
+let solvedRooms = {};
+let perRoomScore = {};
+let attempts = {};
+let hintsUsed = {};
+let roomVisited = {};
+let roomTime = {};
+let currentRoomId = null;
+let roomEnterTime = null;
+let keysCollected = { easy: 0, medium: 0, hard: 0 };
+let keyEarnedInRoom = {};
+let virusInterval = null;
+let bossIntroShown = false; // one-time Room 10 intro cinematic
+let hintMildShown = {};     // tiered hints: room3, room8
+let room10IntelCollected = false;
+let unreadChatMessages = 0;  // counter for unread chat messages (robot indicator)
+
+// NEW: Global flag for terminal init
+let termInit = false;
+
+/* SPECIAL FLAGS FOR ROOM 1 */
+let room1Clues = { port: false, manual: false };
+
+/* PLAYER PROFILE */
+let playerProfile = { name: "", avatar: "hacker", pre: { python: null, networks: null, security: null } };
+let sessionStartTime = null;
+let sessionEndTime = null;
+
+/* AUDIO */
+let muteSounds = false;
+let muteSpeech = false;
+let fontScale = 1.0;
+let audioUnlocked = false;
+
+let correctSound = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+let wrongSound   = new Audio("https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg");
+let clickSound   = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
+let unlockSound  = new Audio("https://actions.google.com/sounds/v1/cartoon/cartoon_boing.ogg");
+let doorSound    = new Audio("https://actions.google.com/sounds/v1/doors/door_creaks.ogg");
+let applauseSound = new Audio("https://actions.google.com/sounds/v1/crowds/battle_crowd_celebrate.ogg");
+let bgMusic      = new Audio("https://actions.google.com/sounds/v1/ambiences/busy_city.ogg");
+bgMusic.loop = true; bgMusic.volume = 0.3;
+
+/* BGM: τοπικά MP3 από φάκελο sounds */
+const BGM_TRACKS = {
+  room1: "sounds/tech.mp3",   room6: "sounds/tech.mp3",   room7: "sounds/tech.mp3",   room8: "sounds/tech.mp3",   room9: "sounds/tech.mp3",
+  room4: "sounds/drone.mp3",
+  room10: "sounds/action.mp3",
+  room2: "sounds/mystery.mp3", room3: "sounds/mystery.mp3", room5: "sounds/mystery.mp3"
+};
+let bgMusicPlayer = new Audio("sounds/mystery.mp3");
+bgMusicPlayer.loop = true;
+bgMusicPlayer.volume = 0.22;
+let currentBGM = null;
+let victoryMusic = new Audio("sounds/victory.mp3");
+victoryMusic.volume = 0.5;
+
+function playBGMForScreen(screenId) {
+  if (!gameStarted) { stopBGM(); return; }
+  if (muteSounds) { try { bgMusicPlayer.pause(); } catch(e) {} currentBGM = null; return; }
+  let src = screenId && screenId.startsWith("room") ? (BGM_TRACKS[screenId] || "sounds/mystery.mp3") : "sounds/mystery.mp3";
+  if (currentBGM === src) return;
+  currentBGM = src;
+  try {
+    bgMusicPlayer.pause();
+    bgMusicPlayer.currentTime = 0;
+    bgMusicPlayer.src = src;
+    bgMusicPlayer.loop = true;
+    bgMusicPlayer.volume = 0.22;
+    bgMusicPlayer.play().catch(function(){});
+  } catch(e) {}
+}
+function stopBGM() {
+  currentBGM = null;
+  try { bgMusicPlayer.pause(); bgMusicPlayer.currentTime = 0; } catch(e) {}
+}
+
+let shortCircuitSound = new Audio("https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_short.ogg");
+let digitalClickSound = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
+let lockClickSound    = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+let victorySound      = new Audio("https://actions.google.com/sounds/v1/crowds/battle_crowd_celebrate.ogg");
+let ambientLoopSound  = new Audio("https://actions.google.com/sounds/v1/ambiences/city_park_ambience.ogg");
+let mysteriousSound   = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+let codeRunSound      = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
+ambientLoopSound.loop = true;
+ambientLoopSound.volume = 0.15;
+victorySound.volume = 0.6;
+applauseSound.volume = 0.5;
+mysteriousSound.volume = 0.35;
+codeRunSound.volume = 0.4;
+
+const allGameSounds = [correctSound, wrongSound, clickSound, unlockSound, doorSound, applauseSound, shortCircuitSound, digitalClickSound, lockClickSound, victorySound, mysteriousSound, codeRunSound];
+
+/** Unlock audio so sounds can play later (browsers block until user gesture). Call on START or Test sound click. */
+function unlockAllAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  allGameSounds.forEach(function(a) {
+    try {
+      a.volume = 0.01;
+      a.play().then(function() { a.pause(); a.currentTime = 0; }).catch(function(){});
+    } catch(e) {}
+  });
+  try { bgMusic.volume = 0.01; bgMusic.play().then(function() { bgMusic.pause(); bgMusic.currentTime = 0; }).catch(function(){}); } catch(e) {};
+  try { ambientLoopSound.volume = 0.01; ambientLoopSound.play().then(function() { ambientLoopSound.pause(); ambientLoopSound.currentTime = 0; }).catch(function(){}); } catch(e) {};
+  try { bgMusicPlayer.volume = 0.01; bgMusicPlayer.play().then(function() { bgMusicPlayer.pause(); bgMusicPlayer.currentTime = 0; }).catch(function(){}); } catch(e) {};
+  // Restore volumes (so later plays are audible)
+  bgMusic.volume = 0.3;
+  ambientLoopSound.volume = 0.15;
+  bgMusicPlayer.volume = 0.22;
+  correctSound.volume = 1;
+  wrongSound.volume = 1;
+  clickSound.volume = 1;
+  unlockSound.volume = 1;
+  doorSound.volume = 1;
+  applauseSound.volume = 0.5;
+  shortCircuitSound.volume = 1;
+  digitalClickSound.volume = 1;
+  lockClickSound.volume = 1;
+  victorySound.volume = 0.6;
+  mysteriousSound.volume = 0.35;
+  codeRunSound.volume = 0.4;
+}
+
+/** Test sound: unlock and play so user can verify. */
+function testSound() {
+  unlockAllAudio();
+  if (muteSounds) { alert("Ξεμπλοκάρετε πρώτα τη «Σίγαση ήχων & μουσικής» για να ακούσετε ήχο."); return; }
+  try { wrongSound.currentTime = 0; wrongSound.volume = 0.5; wrongSound.play().catch(function(){ alert("Δεν μπόρεσε να παίξει ο ήχος. Δοκιμάστε άλλο πρόγραμμα περιήγησης ή ελέγξτε το volume. Σε ανοίγμα ως file:// χρησιμοποιήστε Live Server ή φιλοξενία."); }); } catch(e) { alert("Σφάλμα ήχου: " + e); }
+}
+
+/** Unlock audio on first click anywhere (Chrome/Windows often needs user gesture). */
+var audioUnlockOnce = false;
+function tryUnlockAudioOnFirstClick() {
+  if (audioUnlockOnce) return;
+  audioUnlockOnce = true;
+  unlockAllAudio();
+  document.removeEventListener("click", tryUnlockAudioOnFirstClick);
+  document.removeEventListener("keydown", tryUnlockAudioOnFirstClick);
+}
+document.addEventListener("click", tryUnlockAudioOnFirstClick, { once: true, passive: true });
+document.addEventListener("keydown", tryUnlockAudioOnFirstClick, { once: true, passive: true });
+
+const sfxMap = { success: correctSound, wrong: wrongSound, shortCircuit: shortCircuitSound, digitalClick: digitalClickSound, lockClick: lockClickSound, door: doorSound, victory: victorySound };
+function playSfx(name) {
+  if (muteSounds) return;
+  const s = sfxMap[name] || (name === "unlock" ? unlockSound : null);
+  if (!s) return;
+  try { s.pause(); s.currentTime = 0; s.play().catch(()=>{}); } catch(e) {}
+}
+
+/* TIMER & INTEGRITY */
+let timeLeft = 900;
+let timerInterval = null;
+let gameStarted = false;
+let integrity = 100;
+
+/* ENGAGEMENT METRICS */
+let chatInteractions = 0;
+let minigameAttempts = 0;
+let combineAttempts = 0;
+let idleTimer = null;
+
+/* ---------- HELPERS ---------- */
+
+function triggerGlitch() {
+  document.body.classList.add('glitch-active');
+  setTimeout(() => document.body.classList.remove('glitch-active'), 400);
+}
+
+function cinematic(title, text, ms=1200){
+  const box = document.getElementById("cinematic");
+  const t = document.getElementById("cinematic-title");
+  const p = document.getElementById("cinematic-text");
+  if(!box || !t || !p) return;
+  t.innerText = title;
+  p.innerText = text;
+  box.style.display = "block";
+  setTimeout(()=> box.style.display="none", ms);
+}
+function deny(message){
+  triggerGlitch();
+  if (!muteSounds) { wrongSound.currentTime = 0; wrongSound.play().catch(()=>{}); }
+  document.getElementById('clue-title').innerText = "ACCESS DENIED";
+  document.getElementById('clue-title').style.color = "red";
+  document.getElementById('clue-message').innerText = message;
+  document.getElementById('clue-popup').style.display = 'block';
+  addChatMessage("Operator", message, "operator");
+  logAction("DENY", currentRoomId, message);
+}
+
+function resetStructures() {
+  solvedRooms = {}; perRoomScore = {}; attempts = {}; hintsUsed = {};
+  roomVisited = {}; roomTime = {}; keyEarnedInRoom = {};
+  keysCollected = { easy: 0, medium: 0, hard: 0 };
+  roomItemsFound = {}; inventory = [];
+  room1Clues = { port: false, manual: false };
+  integrity = 100;
+  score = 150; // Score starts at 150
+  actionLog = [];
+  clearInterval(virusInterval);
+  termInit = false; // Reset terminal flag
+
+  for (let id in roomConfig) {
+    roomItemsFound[id] = false;
+    solvedRooms[id] = false;
+    perRoomScore[id] = roomConfig[id].baseScore;
+    attempts[id] = 0;
+    hintsUsed[id] = 0;
+    roomVisited[id] = false;
+    roomTime[id] = 0;
+    keyEarnedInRoom[id] = false;
+  }
+
+  updateKeysHud();
+  updateInventoryUI();
+  updateIntegrityUI();
+  const scoreEl = document.getElementById("score-value");
+  if (scoreEl) scoreEl.innerText = Math.max(0, score);
+  updateHUD('intro');
+
+  chatInteractions = 0;
+  minigameAttempts = 0;
+  combineAttempts = 0;
+  hintMildShown = {};
+  room10IntelCollected = false;
+  bossIntroShown = false;
+  unreadChatMessages = 0;
+  const chat = document.getElementById('chatbot-container');
+  const robotBtn = document.getElementById('robot-operator-btn');
+  if (chat) chat.style.display = 'none';
+  if (robotBtn) {
+    robotBtn.classList.remove('has-messages');
+    robotBtn.title = '🤖 The Operator';
+  }
+  const inp9 = document.getElementById("input-sql-room9");
+  if (inp9) { inp9.value = ""; inp9.placeholder = "εντολή..."; }
+
+  const inp = document.getElementById("input-port-room4");
+  const btn = document.getElementById("btn-port-room4");
+  if(inp && btn) { inp.disabled = true; btn.disabled = true; }
+
+  const need8 = document.getElementById("room8-need-debugger");
+  const code8 = document.getElementById("room8-code-area");
+  if (need8 && code8) { need8.style.display = "block"; code8.style.display = "none"; }
+  
+  document.body.classList.remove('panic-mode'); // Καθαρισμός κόκκινης οθόνης στο Restart
+}
+
+resetStructures();
+
+/* INTEGRITY WITH PANIC MODE */
+function updateIntegrityUI() {
+  const bar = document.getElementById('integrity-bar');
+  if(!bar) return;
+  bar.style.width = integrity + "%";
+  
+  // LOGIC FIX: Εδώ ελέγχουμε το Panic Mode
+  if(integrity < 30) {
+      bar.style.background = "red";
+      document.body.classList.add('panic-mode'); // Ενεργοποίηση κόκκινης οθόνης
+  } else {
+      document.body.classList.remove('panic-mode'); // Απενεργοποίηση
+      if(integrity < 60) bar.style.background = "yellow";
+      else bar.style.background = "lightgreen";
+  }
+}
+function damageIntegrity(amount) {
+  integrity = Math.max(0, integrity - amount);
+  updateIntegrityUI();
+  document.body.style.transform = "translateX(5px)";
+  setTimeout(()=> document.body.style.transform = "translateX(-5px)", 50);
+  setTimeout(()=> document.body.style.transform = "none", 100);
+}
+
+/* GAMEPLAY */
+function normalizeClueText(text) {
+  if (!text || typeof text !== 'string') return text;
+  let t = text.trim();
+  t = t.replace(/Log Fragment A: /g, "Θραύσμα Α: ").replace(/Cipher Fragment B: /g, "Θραύσμα Β: ").replace(/Schema Fragment C: /g, "Θραύσμα Γ: ");
+  const prefixes = ["Post-It: ", "Python Manual: ", "Manual Δικτύου: ", "ASCII Chart: ", "Note: ", "Hint: ", "Robot: ", "Log Fragment A: ", "Cipher Fragment B: ", "Θερμόμετρο: ", "SQL Manual: ", "Schema Fragment C: ", "Intel: ", "Debugger Tool (USB stick): "];
+  for (const p of prefixes) { if (t.startsWith(p)) { t = t.slice(p.length).trim(); break; } }
+  return t || text;
+}
+
+function pickupItem(roomId, icon, text, element, hiddenSecret=null) {
+  if (roomId === 'room1') {
+    if (text.includes("Port")) {
+      if (room1Clues.port) return;
+      room1Clues.port = true;
+    } else if (text.includes("Manual")) {
+      if (room1Clues.manual) return;
+      room1Clues.manual = true;
+    }
+  }
+  if (roomId === 'room10' && text.includes('Intel')) room10IntelCollected = true;
+
+  inventory.push({ icon, text, roomId, secret: hiddenSecret });
+  logAction("PICKUP", roomId, text);
+
+  const displayText = normalizeClueText(text);
+  document.getElementById('clue-title').innerText = "ΣΤΟΙΧΕΙΟ ΚΑΤΑΓΡΑΦΗΚΕ";
+  document.getElementById('clue-title').style.color = "#33ff33";
+  document.getElementById('clue-message').innerHTML = displayText + "<br><br><i>(Προστέθηκε στο Toolkit)</i>";
+  document.getElementById('clue-popup').style.display = 'block';
+
+  const btn = document.getElementById('backpack-btn');
+  btn.classList.add('backpack-wiggle');
+  setTimeout(()=> btn.classList.remove('backpack-wiggle'), 500);
+
+  updateInventoryUI();
+
+  addChatMessage("System", `New Asset: ${displayText.substring(0, 40)}${displayText.length > 40 ? '...' : ''}`, "system");
+
+  const lock = document.querySelector(`#lock-${roomId}`);
+  if(lock) lock.classList.add('pulse-active');
+
+  playSfx("digitalClick");
+  if (element) element.style.display = 'none';
+
+  if (roomId === 'room10' && text.includes('Intel')) {
+    const storyEl = document.getElementById("story-room10");
+    if (storyEl) storyEl.innerHTML = "Ο Wiper ξεκίνησε διαδικασία διαγραφής. Απαιτείται πρωτόκολλο αντιμετώπισης απειλής.<br><span style=\"color:#ffd700; font-size:0.9em;\">💡 Χρησιμοποίησε το κλειδί για το τελικό στάδιο.</span>";
+    addChatMessage("Operator", "Intel συλλέχτηκε. Χρησιμοποίησε το κλειδί όταν είσαι έτοιμος.", "operator");
+  }
+}
+
+function examine(text, icon) {
+  if(!muteSounds) clickSound.play().catch(()=>{});
+  document.getElementById('clue-title').innerText = "ΓΡΗΓΟΡΗ ΣΑΡΩΣΗ";
+  document.getElementById('clue-title').style.color = "#33ff33";
+  document.getElementById('clue-message').innerText = text;
+  document.getElementById('clue-popup').style.display = 'block';
+  logAction("EXAMINE", currentRoomId, text);
+}
+function closeCluePopup() { document.getElementById('clue-popup').style.display = 'none'; }
+
+function showDeepScan(msg) {
+  document.getElementById('clue-title').innerText = "DEEP SCAN";
+  document.getElementById('clue-title').style.color = "#33ff33";
+  document.getElementById('clue-message').innerText = msg;
+  document.getElementById('clue-popup').style.display = 'block';
+}
+
+function toggleBackpack() {
+  const modal = document.getElementById('backpack-modal');
+  modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+}
+
+// INSPECT ITEM LOGIC
+let currentInspectItem = null;
+function inspectItem(index) {
+    currentInspectItem = inventory[index];
+    const modal = document.getElementById('inspect-modal');
+    document.getElementById('inspect-icon').innerText = currentInspectItem.icon;
+    document.getElementById('inspect-title').innerText = "Asset #" + (index+1);
+    document.getElementById('inspect-desc').innerText = normalizeClueText(currentInspectItem.text);
+    document.getElementById('inspect-secret-area').style.display = 'none';
+    modal.style.display = 'block';
+}
+
+function revealSecret() {
+    const area = document.getElementById('inspect-secret-area');
+    if(currentInspectItem && currentInspectItem.secret) {
+        area.style.display = 'block';
+        area.innerHTML = "<b>HIDDEN DATA DECRYPTED:</b><br>" + currentInspectItem.secret;
+        playSfx("lockClick");
+    } else {
+        area.style.display = 'block';
+        area.innerHTML = "No hidden data found.";
+    }
+}
+
+function updateInventoryUI() {
+  const list = document.getElementById('backpack-items-list');
+  if(!list) return;
+  if(inventory.length === 0) {
+    list.innerHTML = '<span style="font-style:italic; font-size:12px; color:#aaa;">No assets found...</span>';
+    return;
+  }
+  list.innerHTML = '';
+  inventory.forEach((item, index) => {
+    let div = document.createElement('div');
+    div.className = 'bp-item';
+    const displayText = normalizeClueText(item.text);
+    div.innerText = item.icon;
+    div.title = displayText;
+    div.onclick = () => inspectItem(index); // Changed to Inspect
+    list.appendChild(div);
+  });
+}
+
+function getCollectedCountForRoom(rId) {
+    return inventory.filter(i => i.roomId === rId).length;
+}
+
+function attemptUnlock(roomId, element) {
+  let canUnlock = false;
+
+  // -- ROOM 1 LOGIC --
+  if (roomId === 'room1') {
+    if (room1Clues.port && room1Clues.manual) {
+      canUnlock = true;
+    } else {
+      deny("Λείπουν δεδομένα: Απαιτούνται το Manual ΚΑΙ το Port Number.");
+      return;
+    }
+  }
+
+  // -- ROOM 2 & 3 LOGIC (2/2 ITEMS FOR UNLOCK - ESCAPE ROOM SEARCH) --
+  else if (roomId === 'room2') {
+    if (getCollectedCountForRoom('room2') >= 2) canUnlock = true;
+    else {
+      deny("Λείπουν στοιχεία! Πρέπει να βρεις και τα 2 αντικείμενα στο δωμάτιο (Manual & Σημείωση) για να ξεκλειδώσεις.");
+      return;
+    }
+  }
+  else if (roomId === 'room3') {
+    if (getCollectedCountForRoom('room3') >= 2) canUnlock = true;
+    else {
+      deny("Λείπουν στοιχεία! Πρέπει να βρεις και τα 2 αντικείμενα στο δωμάτιο (ASCII Chart & Σημείωση) για να ξεκλειδώσεις.");
+      return;
+    }
+  }
+
+  // -- ROOM 7 & 8 LOGIC (STRICT ITEM COUNT) --
+  else if (roomId === 'room7') {
+      if (getCollectedCountForRoom('room7') >= 2) canUnlock = true;
+      else {
+          deny("Λείπουν στοιχεία! Πρέπει να βρεις και τα 2 αντικείμενα (Robot & Fragment) για να ξεκλειδώσεις.");
+          return;
+      }
+  }
+  else if (roomId === 'room8') {
+      if (getCollectedCountForRoom('room8') >= 2) canUnlock = true;
+      else {
+          deny("Λείπουν στοιχεία! Πρέπει να βρεις τουλάχιστον 2 αντικείμενα (Θερμόμετρο, Fragment ή Debugger) για να ξεκλειδώσεις.");
+          return;
+      }
+  }
+
+  // -- ROOM 9 LOGIC (NEEDS MASTER KEY) --
+  else if (roomId === 'room9') {
+    const hasMasterKey = inventory.some(i => i.text.includes("SQL MASTER KEY"));
+    if (!hasMasterKey) {
+      deny("Το Node 9 απαιτεί SQL MASTER KEY. Πρέπει να βρεις τα Fragments στα Room 7, 8 και 9 και να κάνεις Combine.");
+      return;
+    }
+    canUnlock = true;
+  }
+
+  // -- GENERIC LOGIC FOR OTHER ROOMS --
+  else {
+    canUnlock = inventory.some(i => i.roomId === roomId);
+  }
+
+  if (roomId === 'room10' && canUnlock && !room10IntelCollected) {
+    deny("Βρες πρώτα το Intel στο δωμάτιο πριν ξεκλειδώσεις.");
+    return;
+  }
+
+  if (canUnlock) {
+    playSfx("lockClick");
+    if(element) element.classList.remove('pulse-active');
+    
+    // LIGHTS ON
+    if (roomConfig[roomId] && roomConfig[roomId].isDark) {
+        document.getElementById('darkness-overlay').style.display = 'none';
+    }
+    
+    // VIRUS STORM
+    if(roomId === 'room10') {
+        startVirusStorm();
+    }
+
+    const qblock = document.getElementById("qblock-" + roomId);
+    if(qblock) {
+      qblock.style.display = "block";
+      if (roomId === "room8") {
+        const hasDbg = inventory.some(i => i.text && i.text.includes("Debugger Tool"));
+        const needEl = document.getElementById("room8-need-debugger");
+        const codeEl = document.getElementById("room8-code-area");
+        if (needEl && codeEl) {
+          if (hasDbg) { needEl.style.display = "none"; codeEl.style.display = "block"; }
+          else { needEl.style.display = "block"; codeEl.style.display = "none"; }
+        }
+      }
+      // Room 4: Show note only when puzzle is unlocked
+      if (roomId === "room4") {
+        const note = document.getElementById("note-room4");
+        if (note) note.style.display = "block";
+        // Port input remains disabled until combine is done
+      }
+      // Room 7: Show simulator only when puzzle is unlocked
+      if (roomId === "room7") {
+        const simulator = document.getElementById("simulator-room7");
+        if (simulator) simulator.style.display = "block";
+      }
+      var objEl = document.getElementById("obj-" + roomId);
+      if (objEl && roomObjectives[roomId]) { objEl.textContent = roomObjectives[roomId]; objEl.style.display = "block"; }
+      if(qblock.classList.contains("draggable-window")){
+          qblock.style.top = "50%";
+          qblock.style.left = "50%";
+      } else {
+          qblock.scrollIntoView({behavior: "smooth"});
+      }
+
+      // --- BOSS INTRO (ROOM 10) ---
+      if (roomId === 'room10' && !bossIntroShown) {
+          bossIntroShown = true;
+          const storyR10 = document.getElementById("story-room10");
+          if (storyR10) storyR10.innerHTML = "Ο Wiper ξεκίνησε διαδικασία διαγραφής.<br><span style=\"color:#ffd700; font-size:0.9em;\">💡 Δράσε γρήγορα στα παρακάτω.</span>";
+          cinematic("⚠️ BOSS ONLINE", "Ο Wiper ξεκίνησε Upload. Κράτα την ψυχραιμία σου και απάντησε σωστά για να τον σταματήσεις.", 1800);
+          addChatMessage("Operator", "BOSS ALERT: Ο Wiper ενεργοποιήθηκε. Δράσε γρήγορα στα παρακάτω.", "operator");
+          setTimeout(() => { if(!muteSpeech) speak("Δράσε γρήγορα στα παρακάτω."); }, 2000);
+      }
+
+      const layer = document.querySelector("#" + roomId + " .interaction-layer");
+      if(layer && roomId !== 'room1') layer.style.display = "none";
+
+      // --- ROOM 1: system message (no quiz wording) ---
+      if (roomId === 'room1') {
+          speak("Πρωτόκολλο εκκίνησης: γράψε την εντολή που θα εμφανίσει το Hello.");
+      } else if (roomId !== 'room4') {
+          repeatQuestion(roomId);
+      }
+    }
+    logAction("UNLOCK_PUZZLE", roomId, "Success");
+  } else {
+    deny("Κλειδωμένο. Κάνε έρευνα στο δωμάτιο και μάζεψε στοιχεία.");
+  }
+}
+
+function goToNextFrom(currentRoom, nextRoom) {
+  const k = document.getElementById("giant-key-" + currentRoom);
+  if(k) k.style.display = "none";
+  playSfx("door");
+  goTo(nextRoom);
+}
+
+/* UI */
+function toggleSettings() {
+  const p = document.getElementById("settingsPanel");
+  if (!p) return;
+  p.style.display = (p.style.display === "none" || !p.style.display) ? "block" : "none";
+}
+
+function toggleTeacherInfo() {
+  const p = document.getElementById("teacherInfoPanel");
+  if (!p) return;
+  p.style.display = (p.style.display === "none" || !p.style.display) ? "block" : "none";
+}
+
+function toggleMuteSounds() {
+  muteSounds = document.getElementById("muteSoundsCheckbox").checked;
+  if(muteSounds) { try { bgMusic.pause(); ambientLoopSound.pause(); bgMusicPlayer.pause(); } catch(e) {} currentBGM = null; }
+  else if(gameStarted) { playBGMForScreen(currentRoomId || lastScreen || "intro"); }
+}
+function toggleMuteSpeech() { muteSpeech = document.getElementById("muteSpeechCheckbox").checked; if(muteSpeech) speechSynthesis.cancel(); }
+function changeFontSize(delta) {
+  fontScale += delta;
+  if(fontScale<0.8) fontScale=0.8;
+  if(fontScale>1.4) fontScale=1.4;
+  document.documentElement.style.fontSize = (fontScale*100)+"%";
+}
+
+/* HUD */
+function updateHUD(screenId) {
+  let icon = "👤";
+  if (playerProfile.avatar === "hacker") icon = "💻";
+  else if (playerProfile.avatar === "robot") icon = "🤖";
+  else if (playerProfile.avatar === "scientist") icon = "🛡️";
+
+  document.getElementById("playerInfo").innerText = icon + " Agent: " + (playerProfile.name || "Unknown");
+  let roomIndex = (screenId && screenId.startsWith("room")) ? screenId.replace("room","") : 0;
+  document.getElementById("progress").innerText = (roomIndex > 0 && roomIndex <= totalRooms) ? "Δωμάτιο " + roomIndex + "/" + totalRooms : "Standby";
+  const scoreEl = document.getElementById("score-value");
+  if (scoreEl) scoreEl.innerText = Math.max(0, score); // Score never goes below 0
+  else document.getElementById("score").innerText = "⭐ Σκορ: " + Math.max(0, score);
+
+  const d = document.getElementById("difficultyIndicator");
+  if(d) {
+    if(screenId && screenId.startsWith("room")) {
+      const cfg = roomConfig[screenId];
+      d.innerText = `${cfg.diffEmoji} ${cfg.difficulty} • ${cfg.title}`;
+    } else d.innerText = "";
+  }
+}
+function updateKeysHud() {
+  const el = document.getElementById("keysHud");
+  if (!el) return;
+  const parts = [];
+  if (keysCollected.easy > 0) parts.push(`🟢 ${keysCollected.easy}`);
+  if (keysCollected.medium > 0) parts.push(`🟡 ${keysCollected.medium}`);
+  if (keysCollected.hard > 0) parts.push(`🔴 ${keysCollected.hard}`);
+  el.innerText = parts.length ? `🔑 ${parts.join("  ")}` : "🔑";
+}
+function updateProgressMap(screenId) {
+  initProgressMap();
+  const isRoom = screenId && screenId.startsWith("room");
+  for (let id in roomConfig) {
+    const dot = document.getElementById("dot-" + id);
+    if (!dot) continue;
+    dot.classList.remove("room-dot-active");
+    if (solvedRooms[id]) dot.classList.add("room-dot-solved");
+    if (isRoom && id === screenId) dot.classList.add("room-dot-active");
+  }
+}
+function initProgressMap() {
+  const map = document.getElementById("progressMap");
+  if(!map) return;
+  if(map.children.length === 0) {
+    for (let i = 1; i <= totalRooms; i++) {
+      let dot = document.createElement("div");
+      dot.className = "room-dot";
+      dot.id = "dot-room" + i;
+      map.appendChild(dot);
+    }
+  }
+}
+
+/* ---------- SPEECH HELPERS & PHONETICS (FINAL) ---------- */
+function fixPhonetics(text) {
+  let t = text || "";
+  // Remove emoji/icons before speech synthesis
+  t = t.replace(/[\u{1F300}-\u{1F9FF}]/gu, ''); // Emoji range
+  t = t.replace(/[\u{2600}-\u{26FF}]/gu, ''); // Miscellaneous symbols
+  t = t.replace(/[\u{2700}-\u{27BF}]/gu, ''); // Dingbats
+  t = t.replace(/\s+/g, " ").trim();
+  t = t.replace(/\b3\s*ερωτήσεις\b/gi, "τρεις ερωτήσεις");
+  // Fragment A/B/C → διαβάζονται καθαρά ως έι, μπι, σι
+  t = t.replace(/\bFragment A\b/gi, "θραύσμα έι");
+  t = t.replace(/\bFragment B\b/gi, "θραύσμα μπι");
+  t = t.replace(/\bFragment C\b/gi, "θραύσμα σι");
+  t = t.replace(/Θραύσμα Α\b/g, "θραύσμα έι");
+  t = t.replace(/Θραύσμα Β\b/g, "θραύσμα μπι");
+  t = t.replace(/Θραύσμα Γ\b/g, "θραύσμα σι");
+  
+  const rep = [
+    [/\bback\s*up\b/gi, "μπακ απ"], 
+    [/\bbackup\b/gi, "μπακ απ"],
+    [/\bfragment\b/gi, "φράγκμεντ"],
+    [/\bfragments\b/gi, "φράγκμεντς"],
+    [/\bpasswords?\b/gi, "πάσγουορντ"], 
+    [/\bfirewall\b/gi, "φάιργουολ"],
+    [/\bserver\b/gi, "σέρβερ"], 
+    [/\bterminal\b/gi, "τέρμιναλ"],
+    [/\btoolkit\b/gi, "τούλκιτ"], 
+    [/\bcombine\b/gi, "κομπάιν"],
+    [/\bport\b/gi, "πόρτ"], 
+    [/\bnode\b/gi, "νόουντ"],
+    [/\bphishing\b/gi, "φίσινγκ"], 
+    [/\bsql\b/gi, "ες κιου ελ"],
+    [/\bselect\b/gi, "σελέκτ"], 
+    [/\bhttps\b/gi, "έιτς τι τι πι ες"],
+    [/\bhttp\b/gi, "έιτς τι τι πι"], 
+    [/\bpython\b/gi, "πάιθον"],
+    [/\bhdd\b/gi, "έιτς ντι ντι"], 
+    [/\bssd\b/gi, "ες ες ντι"],
+    [/\btotal\b/gi, "τόταλ"], 
+    [/\bdecrypt\b/gi, "ντικρίπτ"],
+    [/\bprint\b/gi, "πρίντ"], 
+    [/\bloop\b/gi, "λούπ"],
+    [/\brange\b/gi, "ρέιντζ"], 
+    [/\bif\b/gi, "ίφ"],
+    [/\belse\b/gi, "έλς"], 
+    [/\bhardware\b/gi, "χάρντγουερ"],
+    [/\bsoftware\b/gi, "σόφτγουερ"], 
+    [/\bvirus\b/gi, "βάιρους"],
+    [/\bantivirus\b/gi, "αντιβάιρους"], 
+    [/\bwiper\b/gi, "γουάιπερ"], 
+    [/\boperator\b/gi, "όπερεϊτορ"],
+    [/\baccess\b/gi, "άξες"], 
+    [/\bdenied\b/gi, "ντινάιντ"],
+    [/\bsystem\b/gi, "σίστεμ"], 
+    [/\bintegrity\b/gi, "ιντέγκριτι"],
+    [/\bloading\b/gi, "λόουντινγκ"], 
+    [/\berror\b/gi, "έρρορ"],
+    [/\bsuccess\b/gi, "σαξές"], 
+    [/\binsert\b/gi, "ινσέρτ"],
+    [/\bupdate\b/gi, "απντέιτ"], 
+    [/\bascii\b/gi, "άσκι"],
+    [/\blogs\b/gi, "λογς"],
+    [/\blog\b/gi, "λογ"],
+    [/\badmin\b/gi, "αντμιν"]
+  ];
+  rep.forEach(([r, v]) => t = t.replace(r, v));
+  t = t.replace(/\bthe wiper\b/gi, "δε γουάιπερ");
+  return t;
+}
+
+function speak(text) {
+  if (muteSpeech) return;
+  if (!text) return;
+  if (speechSynthesis.speaking) speechSynthesis.cancel();
+  const safeText = fixPhonetics(text);
+  const u = new SpeechSynthesisUtterance(safeText);
+  u.lang = "el-GR";
+  speechSynthesis.speak(u);
+}
+function speakLoss(reason, points) {
+  if (muteSpeech) return;
+  if (!points || points <= 0) return;
+  let word = (points === 1 ? "πόντο" : "πόντους");
+  let prefix = "";
+  if (reason === "wrong") prefix = "Λάθος απάντηση. ";
+  else if (reason === "hint") prefix = "Χρησιμοποίησες υπόδειξη. ";
+  speak(prefix + "Έχασες " + points + " " + word + ".");
+}
+
+/* SCORE - max 3 wrong penalties per room so repeated same wrong answer doesn't zero out */
+const MAX_WRONG_PENALTIES_PER_ROOM = 3;
+function applyWrongPenalty(roomId) {
+  if (solvedRooms[roomId]) return;
+  const wrongCount = attempts[roomId] || 0;
+  if (wrongCount > MAX_WRONG_PENALTIES_PER_ROOM) return; /* no further score/integrity deduction */
+  const p = roomConfig[roomId].wrongPenalty;
+  perRoomScore[roomId] = Math.max(0, perRoomScore[roomId] - p);
+  score = Math.max(0, score - p);
+  damageIntegrity(5);
+  updateHUD(roomId);
+  speakLoss("wrong", p);
+  triggerGlitch();
+  if (!muteSounds) { wrongSound.currentTime = 0; wrongSound.play().catch(()=>{}); }
+  logAction("WRONG_ANSWER", roomId, `Penalty: -${p}`);
+}
+
+function showHint(roomId) {
+  // Tiered hints: room3, room8 — first click = mild (no penalty), second = strong (penalty)
+  if ((roomId === 'room3' || roomId === 'room8') && !hintMildShown[roomId]) {
+    let mild = "";
+    if (roomId === 'room3') mild = "Ο στόχος είναι ένας αριθμός. Σκέψου πώς τα 0 και 1 σε διαφορετικές θέσεις σχηματίζουν αριθμούς.";
+    if (roomId === 'room8') mild = "Στο if, για να ελέγξεις ισότητα χρειάζονται δύο χαρακτήρες—το ένα μόνο κάνει κάτι διαφορετικό.";
+    hintMildShown[roomId] = true;
+    let el = document.getElementById("hint-" + roomId);
+    if (el) el.innerText = "💡 " + mild + " (πρώτη υπόδειξη, χωρίς penalty)";
+    addChatMessage("Operator", "Hint: " + mild, "operator");
+    return;
+  }
+
+  let text = "";
+  if(roomId==='room1') text = "Στο Python χρειάζεσαι την εντολή που εμφανίζει κείμενο. Ψάξε στο δωμάτιο για οδηγίες· το σύστημα ζητάει να εμφανιστεί το Hello.";
+  if(roomId==='room2') text = "Κάθε όρος (IP, DNS, HTTP) αντιστοιχεί σε μια έννοια: η μία σε διευθύνσεις, η άλλη σε ονόματα, η άλλη σε επικοινωνία web. Σύρε κάθε όρο στο ορισμό που ταιριάζει.";
+  if(roomId==='room3') text = "Ο στόχος είναι ένας αριθμός. Σκέψου δυαδικό: κάθε θέση bit έχει διαφορετική «δύναμη». Υπάρχει στοιχείο στο δωμάτιο που σου λέει ποιος αριθμός.";
+  if(roomId==='room4') text = "Χρειάζεσαι Python Manual + Port 8080 (Post-It) από το Δωμάτιο 1 για Combine. Μετά την είσοδο Port, απάντησε ποιο εξάρτημα διατηρεί δεδομένα χωρίς ρεύμα.";
+  if(roomId==='room5') text = "Υπάρχει χαρτί με κρυφή πληροφορία. Πώς μπορείς να δεις κρυφά δεδομένα σε αντικείμενα του Σακιδίου;";
+  if(roomId==='room6') text = "Σε κάθε αλγόριθμο: πρώτα αρχικοποίηση, μετά επανάληψη (loop), μετά η πράξη μέσα στο loop, τέλος έξοδος. Ποια σειρά έχει νόημα;";
+  if(roomId==='room7') text = "Έλεγξε την οθόνη προσομοιωτή στο δωμάτιο για την έξοδο range(0, 5, 2).";
+  if(roomId==='room8') text = "Μάζεψε το Debugger Tool (USB) και πάτα «Εφαρμογή Debugger». Στο if, για ισότητα χρειάζονται δύο ίδιοι χαρακτήρες (==), όχι ένα (=).";
+  if(roomId==='room9') text = "Σκονάκι στον κάδο ανακύκλωσης: SELECT για διάβασμα. Πληκτρολόγησε την εντολή στο τερματικό.";
+  if(roomId==='room10') text = "Διέγραψε το phishing email. Ενεργοποίησε το Firewall. Επίλεξε HTTPS για ασφαλή σύνδεση.";
+
+  let el = document.getElementById("hint-" + roomId);
+  const hp = roomConfig[roomId].hintPenalty;
+  if(el) el.innerText = "💡 " + text + " (-" + hp + " βαθμοί)";
+
+  if (!solvedRooms[roomId]) {
+    hintsUsed[roomId]++;
+    perRoomScore[roomId] = Math.max(0, perRoomScore[roomId] - hp);
+    score = Math.max(0, score - hp);
+    damageIntegrity(2);
+    updateHUD(roomId);
+    speakLoss("hint", hp);
+    addChatMessage("Operator", `Hint: ${text}`, "operator");
+    logAction("HINT_USED", roomId, text);
+  }
+}
+
+function awardKeyOnce(roomId) {
+  if (keyEarnedInRoom[roomId]) return;
+  keyEarnedInRoom[roomId] = true;
+  keysCollected[roomConfig[roomId].difficultyKey]++;
+  updateKeysHud();
+}
+function showKeyEarned(roomId) {
+  const el = document.getElementById("key-earned-" + roomId);
+  if (!el) return;
+  el.className = "key-earned show";
+  el.innerHTML = `<span style='font-size:2em'>✅ ACCESS GRANTED</span>`;
+  addChatMessage("System", `Node ${roomId} Secured. Access Granted.`, "system");
+  playSfx("success"); // Sound when key appears
+  setTimeout(() => { el.classList.remove("show"); el.style.display = "none"; }, KEY_DISPLAY_MS);
+}
+
+/* ROOM 1 TERMINAL - FIXED */
+function initTerminalRoom1(){
+  if(termInit) return; // FIX: Αποφυγή διπλής εκτέλεσης
+  const termInput1 = document.getElementById('term-input-1');
+  if(!termInput1) return;
+
+  termInput1.addEventListener('keydown', function(e) {
+    if(e.key === 'Enter') {
+      const cmd = this.value.trim();
+      const out = document.getElementById('term-output-1');
+      if(!out) return;
+
+      // "Code running" sound when student submits a command
+      if (!muteSounds) { try { codeRunSound.currentTime = 0; codeRunSound.play().catch(()=>{}); } catch(err) {} }
+
+      out.innerHTML += `<div class="term-line" style="color:#fff;">root@sys:~$ ${cmd}</div>`;
+      this.value = '';
+
+      const ok = cmd.startsWith('print') && (cmd.includes('"') || cmd.includes("'")) && /hello/i.test(cmd);
+      if(ok) {
+        out.innerHTML += `<div class="term-line term-success">>> Hello</div>`;
+        out.innerHTML += `<div class="term-line term-success">>> Σύστημα ενεργό.</div>`;
+        checkAnswer('feedback1', true, null, 'room1');
+        
+        // --- NEW: AUTO-CLOSE WINDOW ON SUCCESS ---
+        setTimeout(() => {
+            document.getElementById('qblock-room1').style.display = 'none';
+        }, 1500);
+
+      } else {
+        out.innerHTML += `<div class="term-line term-error">Σφάλμα σύνταξης. Η εντολή δεν παρήγαγε το αναμενόμενο αποτέλεσμα.</div>`;
+        checkAnswer('feedback1', false, null, 'room1');
+      }
+      const term = document.getElementById("term-room1");
+      if(term) term.scrollTop = term.scrollHeight;
+    }
+  });
+  termInit = true;
+}
+
+/* ROOM 3 BIT FLIPPER */
+let currentBits = [0,0,0,0,0,0,0,0];
+function toggleBit(index, btn) {
+    currentBits[index] = currentBits[index] === 0 ? 1 : 0;
+    btn.innerText = currentBits[index];
+    if(currentBits[index]===1) btn.classList.add('active'); else btn.classList.remove('active');
+    
+    let val = 0;
+    for(let i=0; i<8; i++) {
+        if(currentBits[i]===1) val += Math.pow(2, i);
+    }
+    document.getElementById('bit-val').innerText = val + " (Target: 75)";
+}
+function checkBits() {
+    let val = 0;
+    for(let i=0; i<8; i++) { if(currentBits[i]===1) val += Math.pow(2, i); }
+    if(val === 75) checkAnswer('feedback3', true, null, 'room3');
+    else checkAnswer('feedback3', false, null, 'room3');
+}
+
+/* ROOM 4 PORT */
+function checkPortRoom4() {
+  let val = document.getElementById('input-port-room4').value.trim();
+  if(val === "8080") {
+    document.getElementById('room4-part1').style.display = 'none';
+    document.getElementById('room4-part2').style.display = 'block';
+    cinematic("FIREWALL DOWN", "Πέρασες το Port check. Προχώρα στο hardware!", 1300);
+    playSfx("success");
+    addChatMessage("System", "Firewall Down. Hardware Access Open.", "system");
+    speak("Firewall Down. Ποιο εξάρτημα διατηρεί τα δεδομένα όταν κλείσει το ρεύμα;");
+    logAction("PUZZLE_STEP", "room4", "Port 8080 Entered");
+  } else {
+    document.getElementById('port-feedback').innerText = "❌ Λανθασμένη επιλογή. Χρησιμοποίησε το Toolkit (Δωμάτιο 1) για το σωστό Port.";
+    damageIntegrity(5);
+    if (!muteSounds) { wrongSound.currentTime = 0; wrongSound.play().catch(()=>{}); }
+    logAction("WRONG_ANSWER", "room4", "Wrong Port: " + val);
+  }
+}
+
+/* ROOM 5 KEYPAD LOGIC */
+function kpPress(num) {
+  const d = document.getElementById('keypad-display');
+  if(d.value.length < 4) d.value += num;
+}
+function kpClear() { document.getElementById('keypad-display').value = ""; }
+function kpEnter() {
+  const d = document.getElementById('keypad-display');
+  if(d.value === "1234") {
+    checkAnswer('feedback5', true, null, 'room5');
+  } else {
+    d.value = "ERR";
+    triggerGlitch();
+    setTimeout(kpClear, 500);
+    checkAnswer('feedback5', false, null, 'room5');
+  }
+}
+
+/* ROOM 6 PARSONS */
+function checkParsons() {
+    const target = document.getElementById('parsons-target');
+    const kids = target.children;
+    if(kids.length < 4) { alert("Σύρε όλες τις εντολές!"); return; }
+    
+    if(kids[0].id==='p2' && kids[1].id==='p3' && kids[2].id==='p4' && kids[3].id==='p1') {
+        checkAnswer('feedback6', true, null, 'room6');
+    } else {
+        checkAnswer('feedback6', false, null, 'room6');
+    }
+}
+
+/* ROOM 9 TERMINAL (type SELECT – clue in recycling bin) */
+function submitSqlRoom9() {
+  if (solvedRooms['room9']) return;
+  const inp = document.getElementById('input-sql-room9');
+  const val = (inp && inp.value) ? inp.value.trim().toUpperCase() : '';
+  const correct = (val === 'SELECT');
+  attempts['room9']++;
+  const fb = document.getElementById('feedback9');
+  if (correct) {
+    if (fb) fb.innerHTML = "<span class='correct'>✅ Εντολή αποδεκτή. Η βάση ανταποκρίνεται.<br><small>Κέρδισες Κλειδί Επιπέδου 3. Άνοιξε η έξοδος του δωματίου.</small></span>";
+    solvedRooms['room9'] = true;
+    awardKeyOnce('room9');
+    showKeyEarned('room9');
+    logAction("SOLVED", "room9", "SELECT entered");
+    playSfx("success");
+    const gkey = document.getElementById("giant-key-room9");
+    if (gkey) gkey.style.display = "block";
+    const qblock = document.getElementById("qblock-room9");
+    if (qblock) qblock.style.display = "none";
+  } else {
+    if (fb) fb.innerHTML = "<span class='wrong'>❌ Εντολή απορρίφθηκε. Διάβασε το σκονάκι στον κάδο ανακύκλωσης.</span>";
+    applyWrongPenalty('room9');
+    if (!muteSounds) { wrongSound.currentTime = 0; wrongSound.play().catch(()=>{}); }
+    logAction("WRONG_ANSWER", "room9", "Wrong: " + val);
+  }
+}
+
+function closePuzzleBackToRoom(roomId) {
+  const qblock = document.getElementById("qblock-" + roomId);
+  const layer = document.querySelector("#" + roomId + " .interaction-layer");
+  if (qblock) qblock.style.display = "none";
+  if (layer) layer.style.display = "block";
+}
+
+function useDebuggerRoom8() {
+  const hasDebugger = inventory.some(i => i.text && i.text.includes("Debugger Tool"));
+  const needEl = document.getElementById("room8-need-debugger");
+  const codeEl = document.getElementById("room8-code-area");
+  if (hasDebugger && needEl && codeEl) {
+    needEl.style.display = "none";
+    codeEl.style.display = "block";
+    playSfx("success");
+    if (document.getElementById("feedback8")) document.getElementById("feedback8").innerHTML = "<span class='correct'>✓ Debugger εφαρμόστηκε. Ο κώδικας είναι ορατός.</span>";
+    logAction("PUZZLE_STEP", "room8", "Debugger applied");
+  } else {
+    alert("Πρώτα μάζεψε το Debugger Tool (USB stick) στο δωμάτιο. Πάτα «Πίσω στο δωμάτιο» για να το πάρεις.");
+  }
+}
+
+/* ROOM 8 SPOT THE BUG */
+function checkBug(isError, tokenText, element) {
+    if(isError) {
+        checkAnswer('feedback8', true, null, 'room8');
+    } else {
+        triggerGlitch();
+        // Show educational tooltip instead of alert
+        showRoom8Tooltip(tokenText, element);
+        damageIntegrity(5);
+        logAction("WRONG_ANSWER", "room8", "Clicked wrong token: " + tokenText);
+    }
+}
+
+function showRoom8Tooltip(tokenText, element) {
+    const tooltip = document.getElementById("room8-tooltip");
+    if (!tooltip) return;
+    
+    // Educational messages for each token
+    const messages = {
+        'if': 'Το "if" είναι σωστή εντολή Python. Το πρόβλημα είναι στον τελεστή σύγκρισης.',
+        'password': 'Το "password" είναι σωστή μεταβλητή. Το πρόβλημα είναι στον τελεστή σύγκρισης.',
+        'string1234': 'Το "1234" είναι σωστή τιμή string. Το πρόβλημα είναι στον τελεστή σύγκρισης.',
+        'colon': 'Το ":" είναι σωστός χαρακτήρας για την if statement. Το πρόβλημα είναι στον τελεστή σύγκρισης.',
+        'print': 'Το "print" είναι σωστή εντολή Python. Το πρόβλημα είναι στον τελεστή σύγκρισης.'
+    };
+    
+    const message = messages[tokenText] || 'Αυτό το σημείο φαίνεται σωστό. Ψάξε για το συντακτικό λάθος στον τελεστή σύγκρισης!';
+    
+    tooltip.textContent = message;
+    tooltip.style.display = 'block';
+    
+    // Position tooltip near the clicked element
+    if (element) {
+        const rect = element.getBoundingClientRect();
+        tooltip.style.left = (rect.left + rect.width / 2) + 'px';
+        tooltip.style.top = (rect.top - 60) + 'px';
+        tooltip.style.transform = 'translateX(-50%)';
+    } else {
+        // Fallback: center of screen
+        tooltip.style.left = '50%';
+        tooltip.style.top = '40%';
+        tooltip.style.transform = 'translate(-50%, -50%)';
+    }
+    
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+        if (tooltip) {
+            tooltip.style.display = 'none';
+        }
+    }, 4000);
+}
+
+/* GENERIC CHECK ANSWER */
+function checkAnswer(feedbackId, correct, nextScreen, roomId) {
+  let rId = roomId || (nextScreen && nextScreen.startsWith("room") ? nextScreen : null);
+  if (!rId) return;
+  if (solvedRooms[rId]) return;
+
+  attempts[rId]++;
+
+  let fb = document.getElementById(feedbackId);
+
+  if (correct) {
+    if (fb) {
+      const successMsg = { room1: "✅ Εκτέλεση επιτυχής. Το τερματικό ανταποκρίνεται.", room2: "✅ Σύνδεση αποκαταστάθηκε. Ροή δεδομένων ενεργή.", room3: "✅ Αποκωδικοποίηση επιτυχής. Το σήμα έγινε αποδεκτό.", room4: "✅ Σωστή επιλογή. Το backup μπορεί να αποθηκευτεί.", room5: "✅ Πρόσβαση επιτράπηκε.", room6: "✅ Εκτέλεση επιτυχής. Ο αλγόριθμος σταθεροποιήθηκε.", room7: "✅ Η έξοδος ταιριάζει με το log. Συνέχεια πρόσβασης.", room8: "✅ Διόρθωση εφαρμόστηκε. Η διαδικασία συνεχίζεται.", room9: "✅ Εντολή αποδεκτή. Η βάση ανταποκρίνεται.", room10: "✅ Πρωτόκολλο ολοκληρώθηκε." };
+      const keyLine = rId === 'room10' ? "το τελικό κλειδί" : (roomConfig[rId] && { easy: "Κλειδί Επιπέδου 1", medium: "Κλειδί Επιπέδου 2", hard: "Κλειδί Επιπέδου 3" }[roomConfig[rId].difficultyKey]) || "κλειδί";
+      fb.innerHTML = "<span class='correct'>" + (successMsg[rId] || "✅ Πρωτόκολλο ολοκληρώθηκε.") + "<br><small>Κέρδισες " + keyLine + ". Άνοιξε η έξοδος του δωματίου.</small></span>";
+    }
+    solvedRooms[rId] = true;
+    awardKeyOnce(rId);
+    showKeyEarned(rId);
+    logAction("SOLVED", rId, "Correct Answer");
+    playSfx("success");
+
+    const gkey = document.getElementById("giant-key-" + rId);
+    if(gkey) gkey.style.display = "block";
+
+    if(rId !== 'room1') {
+      const qblock = document.getElementById("qblock-" + rId);
+      if(qblock) qblock.style.display = "none";
+    }
+
+  } else {
+    if (fb) {
+      const failMsg = { room1: "❌ Σφάλμα εκτέλεσης. Έλεγξε σύνταξη και εισαγωγικά.", room2: "❌ Αποτυχία αποκατάστασης. Κάποιο module είναι σε λάθος θέση.", room3: "❌ Λάθος κωδικοποίηση. Ρύθμισε ξανά τα bits.", room4: "❌ Λανθασμένη επιλογή. Το σύστημα δεν μπορεί να διατηρήσει δεδομένα έτσι.", room5: "❌ Απόρριψη κωδικού. Νέα προσπάθεια.", room6: "❌ Σφάλμα ροής. Κάποια εντολή είναι σε λάθος θέση.", room7: "❌ Η έξοδος δεν ταιριάζει. Ξαναέλεγξε το βήμα (step).", room8: "❌ Δεν ήταν αυτό. Το σφάλμα παραμένει.", room9: "❌ Εντολή απορρίφθηκε. Λανθασμένη εντολή.", room10: "❌ Ο ιός προσαρμόζεται. Το πρωτόκολλο απέτυχε." };
+      fb.innerHTML = "<span class='wrong'>" + (failMsg[rId] || "❌ Αποτυχία διαδικασίας.") + "</span>";
+    }
+    applyWrongPenalty(rId);
+  }
+}
+
+/* BOSS FIGHT */
+function startVirusStorm() {
+    virusInterval = setInterval(() => {
+        if(solvedRooms['room10']) { clearInterval(virusInterval); return; }
+        const p = document.createElement('div');
+        p.className = 'virus-popup';
+        p.style.top = (75 + Math.random() * 20) + '%';
+        p.style.left = (5 + Math.random() * 90) + '%';
+        p.innerHTML = "⚠️ SYSTEM FAILURE <div class='virus-close' onclick='this.parentElement.remove()'>X</div>";
+        document.body.appendChild(p);
+        setTimeout(() => { if(p.parentElement) p.remove(); }, 8500);
+    }, 3500);
+}
+
+function bossFightStep(step, isCorrect) {
+  let fb = document.getElementById('feedback10');
+  if(!isCorrect) {
+    fb.innerHTML = "❌ Ο ιός προσαρμόζεται. Το πρωτόκολλο απέτυχε.";
+    damageIntegrity(10);
+    triggerGlitch();
+    if (!muteSounds) { wrongSound.currentTime = 0; wrongSound.play().catch(()=>{}); }
+    logAction("WRONG_ANSWER", "room10", "Step " + step + " Failed");
+    return;
+  }
+
+  playSfx("success");
+  document.getElementById('boss-step-'+step).style.display = 'none';
+  logAction("BOSS_STEP", "room10", "Step " + step + " Cleared");
+
+  if(step < 3) {
+    let next = step + 1;
+    document.getElementById('boss-pct').innerText = (step * 33) + "%";
+
+    // --- BETWEEN-STEPS NARRATIVE (ADDITIVE) ---
+    const bossBeat = {
+      1: { title: "PHISHING IDENTIFIED", text: "Καλή δουλειά. Ο Wiper δεν σε ξεγέλασε. Προχώρα στην άμυνα." },
+      2: { title: "FIREWALL ENGAGED",   text: "Το τείχος σηκώθηκε. Ο Wiper πιέζει. Τώρα εξασφάλισε το Web κανάλι." }
+    };
+    const beat = bossBeat[step];
+    if (beat) {
+      cinematic(beat.title, beat.text, 3200);
+      addChatMessage("Wiper", step === 1 ? "…you resisted." : "…still not enough.", "operator");
+    }
+
+    // Reveal next step after message has been visible long enough to read
+    setTimeout(() => {
+      const nextEl = document.getElementById('boss-step-'+next);
+      if(nextEl) nextEl.style.display = 'block';
+    }, 3200);
+  } else {
+    document.getElementById('boss-pct').innerText = "100%";
+    solvedRooms['room10'] = true;
+    clearInterval(virusInterval); // Stop storm
+    document.querySelectorAll('.virus-popup').forEach(p => p.remove());
+    
+    awardKeyOnce('room10');
+    showKeyEarned('room10');
+    logAction("SOLVED", "room10", "Boss Defeated");
+    document.getElementById("giant-key-room10").style.display = "block";
+    document.getElementById("qblock-room10").style.display = "none";
+    const h2 = document.querySelector("#room10 h2");
+    if(h2) h2.innerText = "SERVER SECURED";
+    cinematic("VIRUS PURGED", "Ο Wiper εξουδετερώθηκε!", 1400);
+    speak("Ο ιός εξουδετερώθηκε. Προχώρα στην έξοδο.");
+  }
+}
+
+/* DRAG & DROP: ROOM 2 (CLASSIC) */
+let draggedItem = null;
+function initRoom2Drag(){
+  const items = document.querySelectorAll('#room2-pool .drag-item');
+  items.forEach(item => {
+    item.addEventListener('dragstart', (e)=> {
+        draggedItem = item;
+        e.dataTransfer.effectAllowed = 'move';
+        item.style.opacity = '0.5';
+    });
+    item.addEventListener('dragend', () => {
+        item.style.opacity = '1';
+        draggedItem = null;
+    });
+  });
+
+  const zones = document.querySelectorAll('#room2 .drop-zone, #room2-pool');
+  zones.forEach(zone => {
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); });
+    zone.addEventListener('drop', (e)=> {
+      e.preventDefault();
+      if(draggedItem && draggedItem.classList.contains('drag-item')) {
+          zone.appendChild(draggedItem);
+      }
+    });
+  });
+}
+
+function checkRoom2() {
+  if (solvedRooms['room2']) return;
+  attempts['room2']++;
+  let ok = true;
+  document.querySelectorAll('.drop-zone').forEach(zone => {
+    let needed = zone.getAttribute("data-answer");
+    let child = zone.querySelector('.drag-item');
+    if(!child || child.id !== needed) ok = false;
+  });
+  if(ok) checkAnswer('feedback2', true, null, 'room2');
+  else checkAnswer('feedback2', false, null, 'room2');
+}
+function resetRoom2() {
+  let c = document.getElementById('room2-pool');
+  document.querySelectorAll('.drag-item').forEach(item => c.appendChild(item));
+  document.getElementById('feedback2').innerHTML = "";
+}
+
+/* DRAG & DROP: ROOM 6 (PARSONS STRICT) */
+function initParsonsDrag(){
+  // Logic specifically for parsons lines
+  document.querySelectorAll('.parsons-line').forEach(item => {
+    item.addEventListener('dragstart', (e)=> {
+        draggedItem = item;
+        e.dataTransfer.effectAllowed = 'move';
+        item.style.opacity = '0.5';
+    });
+    item.addEventListener('dragend', () => {
+        item.style.opacity = '1';
+        draggedItem = null;
+    });
+  });
+
+  // Zones for Room 6 only
+  const pZones = document.querySelectorAll('.parsons-drop-area, #parsons-source');
+  pZones.forEach(zone => {
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); });
+    zone.addEventListener('drop', (e)=> {
+      e.preventDefault();
+      if(draggedItem && draggedItem.classList.contains('parsons-line')) {
+          zone.appendChild(draggedItem);
+      }
+    });
+  });
+}
+
+/* MINIGAME */
+function triggerMinigame(nextRoom) {
+  document.getElementById('minigame-overlay').style.display = 'flex';
+  let hits = 0;
+  const targetEl = document.getElementById('minigame-target');
+  const bar = document.getElementById('minigame-bar');
+  const letters = ['A', 'S', 'D', 'W', 'SPACE'];
+
+  let gameInterval = setInterval(() => {
+    targetEl.innerText = letters[Math.floor(Math.random() * letters.length)];
+  }, 1000);
+
+  const keyHandler = (e) => {
+    const overlay = document.getElementById('minigame-overlay');
+    if(overlay.style.display === 'flex') {
+      const req = targetEl.innerText;
+      let pressed = e.key.toUpperCase();
+      if (e.code === 'Space') pressed = 'SPACE';
+
+      if(pressed === req) {
+        hits++;
+        bar.style.width = (hits * 20) + "%";
+        if(hits >= 5) {
+          clearInterval(gameInterval);
+          overlay.style.display = 'none';
+          document.removeEventListener('keydown', keyHandler);
+          goToNextFrom('room2', nextRoom);
+        }
+      } else {
+        hits = Math.max(0, hits - 1);
+        bar.style.width = (hits * 20) + "%";
+      }
+      minigameAttempts++;
+    }
+  };
+  document.addEventListener('keydown', keyHandler);
+}
+
+/* COMBINE SYSTEM */
+function combineItems() {
+  combineAttempts++;
+
+  // --- ΠΡΟΤΕΡΑΙΟΤΗΤΑ 1: SQL MASTER KEY (Για το Room 9) ---
+  const hasA = inventory.some(i => i.text.includes("Log Fragment A"));
+  const hasB = inventory.some(i => i.text.includes("Cipher Fragment B"));
+  const hasC = inventory.some(i => i.text.includes("Schema Fragment C"));
+  const alreadyHasKey = inventory.some(i => i.text.includes("SQL MASTER KEY"));
+
+  if (hasA && hasB && hasC) {
+    if (alreadyHasKey) {
+        alert("Έχεις ήδη δημιουργήσει το SQL MASTER KEY.");
+        return;
+    }
+    inventory.push({
+      icon: "🗝️",
+      text: "SQL MASTER KEY: SELECT name FROM students WHERE class='A'",
+      roomId: "combine",
+      secret: "CODE: 9999 (Not really needed here, just a key)"
+    });
+    updateInventoryUI();
+    cinematic("MASTER KEY FORGED", "🗝️ SQL MASTER KEY δημιουργήθηκε! Τώρα το Node 9 ξεκλειδώνει.", 1500);
+    addChatMessage("System", "Combine OK: A+B+C → SQL MASTER KEY created.", "system");
+    if(!muteSpeech) speak("Δημιουργήθηκε το SQL master key. Το node εννέα ξεκλειδώνει.");
+    logAction("COMBINE", "inventory", "Created SQL Master Key");
+    return;
+  }
+
+  // --- PARTIAL FEEDBACK: 2/3 SQL FRAGMENTS ---
+  const fragmentCount = (hasA ? 1 : 0) + (hasB ? 1 : 0) + (hasC ? 1 : 0);
+  if (fragmentCount === 2) {
+    const missing = !hasA ? "A" : (!hasB ? "B" : "C");
+    alert(`Είσαι πολύ κοντά: έχεις 2/3 SQL Fragments. Σου λείπει το Fragment ${missing}. Ψάξε στα Nodes 7, 8 και 9 και ξανακάνε Combine.`);
+    addChatMessage("Operator", `2/3 Fragments βρέθηκαν. Λείπει το Fragment ${missing} (Nodes 7, 8, 9).`, "operator");
+    return;
+  }
+
+  if (hasA || hasB || hasC) {
+      if (!hasA || !hasB || !hasC) {
+          alert("Προσπαθείς να φτιάξεις το Master Key, αλλά σου λείπουν κομμάτια (Fragments A, B, C). Ψάξε στα δωμάτια 7, 8 και 9.");
+          return;
+      }
+  }
+
+  // --- ΠΡΟΤΕΡΑΙΟΤΗΤΑ 2: FIREWALL PORT (Για το Room 4) ---
+  const hasManual = inventory.some(i => i.text.includes("Python Manual"));
+  const hasPort = inventory.some(i => i.text.includes("Port 8080"));
+
+  // --- PARTIAL FEEDBACK: MANUAL / PORT PAIR ---
+  if (hasManual && !hasPort) {
+    alert("Έχεις το Python Manual, αλλά σου λείπει το Port 8080 (Post-It) από το Node 1. Βρες το και ξανακάνε Combine.");
+    addChatMessage("Operator", "Σου λείπει το Port 8080 (Post-It) από το Node 1.", "operator");
+    return;
+  }
+  if (!hasManual && hasPort) {
+    alert("Έχεις το Port 8080 (Post-It), αλλά σου λείπει το Python Manual από το Node 1. Βρες το και ξανακάνε Combine.");
+    addChatMessage("Operator", "Σου λείπει το Python Manual από το Node 1.", "operator");
+    return;
+  }
+
+  if (hasManual && hasPort) {
+    const inp = document.getElementById("input-port-room4");
+    const btn = document.getElementById("btn-port-room4");
+    
+    if (inp && inp.disabled === true) {
+      inp.disabled = false;
+      btn.disabled = false;
+      inp.placeholder = "XXXX";
+      inp.focus();
+      const portFb = document.getElementById("port-feedback");
+      if (portFb) portFb.innerText = "✓ Είσοδος ενεργή. Το Port είναι 8080.";
+      cinematic("FIREWALL OVERRIDE", "Ενεργοποιήθηκε η είσοδος Port. Το Port είναι 8080.", 1300);
+      addChatMessage("System", "Combine OK: Manual + Port → Firewall Port input enabled.", "system");
+      if(!muteSpeech) speak("Ο συνδυασμός πέτυχε. Το πόρτ είναι 8080.");
+      logAction("COMBINE", "inventory", "Unlocked Room 4 Port");
+    } else {
+        alert("Δεν υπάρχει άλλος διαθέσιμος συνδυασμός αυτή τη στιγμή.");
+    }
+    return;
+  }
+
+  // --- NARRATIVE ONLY: Manual + ASCII Chart → Decoded Hint (no room unlock) ---
+  const hasAsciiChart = inventory.some(i => i.text.includes("ASCII Chart"));
+  if (hasManual && hasAsciiChart) {
+    cinematic("DECODED HINT", "Manual + ASCII Chart: Το γράμμα K = 75 σε δεκαδικό. Στο Node 3 (Binary), σχημάτισε τον αριθμό 75 με τα bit.", 2000);
+    addChatMessage("System", "Decoded: K=75. Χρήσιμο για το Binary Node (Node 3).", "system");
+    logAction("COMBINE", "inventory", "Decoded Hint: Manual + ASCII Chart");
+    return;
+  }
+
+  alert("Δεν υπάρχει διαθέσιμος συνδυασμός με τα τωρινά αντικείμενα.");
+  addChatMessage("Operator", "Δεν έχεις σωστά στοιχεία για Combine ακόμα.", "operator");
+}
+
+/* CHATBOT */
+const operatorKB = {
+  room1: { concept: "Δωμάτιο 1: Python τερματικό. Χρειάζεται η εντολή που εμφανίζει κείμενο.", guidedHint: "Ψάξε στο δωμάτιο για οδηγίες. Στο Python γράφουμε την εντολή και το μήνυμα σε παρενθέσεις με εισαγωγικά." },
+  room2: { concept: "Δωμάτιο 2: Πρωτόκολλα δικτύου. IP, DNS, HTTP.", guidedHint: "Κάθε όρος αντιστοιχεί σε μια έννοια (διευθύνσεις, ονόματα, επικοινωνία web). Σύρε κάθε όρο στο ορισμό που ταιριάζει." },
+  room3: { concept: "Δωμάτιο 3: Δυαδικό. Στόχος ένας αριθμός.", guidedHint: "Κάθε θέση bit έχει διαφορετική δύναμη. Ψάξε στο δωμάτιο ποιος αριθμός ζητάει το σύστημα." },
+  room4: { concept: "Δωμάτιο 4: Firewall (Port) και hardware.", guidedHint: "Το Port βρίσκεται σε σημειώσεις από Δωμάτιο 1· χρειάζεται Combine. Μετά την είσοδο Port: ποιο εξάρτημα κρατά δεδομένα χωρίς ρεύμα;" },
+  room5: { concept: "Δωμάτιο 5: Κωδικός. Κρυφά δεδομένα.", guidedHint: "Άνοιξε το Σακίδιο και έλεγξε τα αντικείμενα—μπορεί να υπάρχει τρόπος να δεις περισσότερα από το κείμενο." },
+  room6: { concept: "Δωμάτιο 6: Αλγόριθμος (σειρά εντολών).", guidedHint: "Σκέψου: πρώτα αρχικοποίηση, μετά επανάληψη, μετά η πράξη μέσα στο loop, τέλος έξοδος." },
+  room7: { concept: "Δωμάτιο 7: Επανάληψη με βήμα 2.", guidedHint: "Όταν το βήμα είναι 2, δεν παίρνουμε όλες τις τιμές. Ποιες τιμές από 0 μέχρι 4 θα εμφανιστούν;" },
+  room8: { concept: "Δωμάτιο 8: Συντακτικό. Σύγκριση σε if.", guidedHint: "Στο Python, για ισότητα σε if χρειάζονται δύο ίδιοι χαρακτήρες. Ποιο σύμβολο εδώ είναι λάθος;" },
+  room9: { concept: "Δωμάτιο 9: SQL. Ανάκτηση δεδομένων.", guidedHint: "Μία εντολή διαβάζει δεδομένα (όχι εισαγωγή/ενημέρωση). Για το κλειδί: θραύσματα από τρία δωμάτια και Combine." },
+  room10: { concept: "Τελικό: Phishing, Firewall, ασφαλές Web.", guidedHint: "Ποιο μήνυμα πιέζει για άμεσο κλικ; Τι μπλοκάρει μη εξουσιοδοτημένες συνδέσεις; Ποιο πρωτόκολλο web έχει S;" }
+};
+const glossaryTerms = { IP: "Διεύθυνση διαδικτύου", DNS: "Σύστημα ονομάτων", RAM: "Μνήμη τυχαίας προσπέλασης", Firewall: "Τείχος προστασίας", Python: "Γλώσσα προγραμματισμού", Phishing: "Ηλεκτρονικό ψάρεμα", "HDD": "Μονάδα αποθήκευσης", SQL: "Γλώσσα ερωτημάτων βάσεων", HTTPS: "Ασφαλές πρωτόκολλο Web" };
+
+function isUnintelligible(text) {
+  if (!text || text.length < 2) return false;
+  if (/[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\u0600-\u06ff]/.test(text)) return true;
+  const allowed = text.match(/[a-zA-Z\u0370-\u03ff0-9\s.,;?!'\"-]/g);
+  const ratio = allowed ? allowed.length / text.length : 0;
+  return ratio < 0.5;
+}
+
+function getOperatorResponse(question) {
+  const raw = (question || "").trim();
+  const q = raw.toLowerCase();
+  if (!q) return "Γράψε κάτι για να ρωτήσεις.";
+  if (isUnintelligible(raw)) {
+    logAction("CHAT_RESPONSE", currentRoomId, "Unintelligible");
+    return "Δεν καταλαβαίνω. Γράψε στα Ελληνικά ή Αγγλικά για να σε βοηθήσω—δεν δίνω ποτέ απάντηση, μόνο οδηγίες.";
+  }
+  const askAnswer = /\b(απάντηση|λύση|ποιο είναι|τι είναι η απάντηση|answer|solution|τι απαντάω|ποιο κουμπί|τι πατάω|τι γράφω|τι πληκτρολογώ|ποια απάντηση|πες μου την|πείτε την|η απάντηση|το σωστό|correct answer|right answer)\b/i.test(q) || /^(τι|ποιο|πως|γιατι)\s/i.test(q) && (q.includes("απαντ") || q.includes("σωστ") || q.includes("κουμπ") || q.length < 25);
+  if (askAnswer) {
+    logAction("CHAT_RESPONSE", currentRoomId, "Refused direct answer");
+    return "Δεν δίνω ποτέ απάντηση—μόνο βοήθεια. Σκέψου την έννοια· αν χρειάζεσαι οδηγία, πάτησε το κουμπί Υπόδειξη.";
+  }
+  if (currentRoomId && roomConfig[currentRoomId] && !solvedRooms[currentRoomId]) {
+    const kb = operatorKB[currentRoomId];
+    if (kb) {
+      const reply = kb.concept + " " + kb.guidedHint + " Αν χρειάζεσαι περισσότερη βοήθεια, πάτησε το κουμπί Υπόδειξη.";
+      logAction("CHAT_RESPONSE", currentRoomId, reply.substring(0, 80));
+      return reply;
+    }
+  }
+  for (const [term, def] of Object.entries(glossaryTerms)) {
+    if (q.includes(term.toLowerCase())) {
+      const out = term + ": " + def + ".";
+      logAction("CHAT_RESPONSE", currentRoomId, out.substring(0, 80));
+      return out;
+    }
+  }
+  const fallback = "Ρώτα για την τρέχουσα εργασία (π.χ. τι κάνω εδώ;) ή για όρους (IP, DNS, Python, κ.ά.). Δεν δίνω απαντήσεις—μόνο οδηγίες.";
+  logAction("CHAT_RESPONSE", currentRoomId, fallback);
+  return fallback;
+}
+
+function sendChatQuestion() {
+  const inp = document.getElementById("chat-input");
+  if (!inp) return;
+  const question = inp.value.trim();
+  if (!question) return;
+  logAction("CHAT_QUESTION", currentRoomId, question);
+  addChatMessage("You", question, "user");
+  inp.value = "";
+  const response = getOperatorResponse(question);
+  addChatMessage("Operator", response, "operator");
+  chatInteractions++;
+  // Το chat είναι ήδη ανοιχτό αν ο χρήστης έκανε κλικ στο ρομπότ
+  const container = document.getElementById("chat-messages");
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+function toggleChatbot() {
+  const chat = document.getElementById('chatbot-container');
+  const robotBtn = document.getElementById('robot-operator-btn');
+  if (!chat || !robotBtn) return; // Safety check
+  const isOpening = chat.style.display !== 'flex';
+  chat.style.display = isOpening ? 'flex' : 'none';
+  if (isOpening) {
+    chatInteractions++;
+    if (typeof unreadChatMessages === 'undefined') unreadChatMessages = 0;
+    unreadChatMessages = 0;
+    robotBtn.classList.remove('has-messages');
+    robotBtn.title = '🤖 The Operator';
+    const container = document.getElementById('chat-messages');
+    if (container) container.scrollTop = container.scrollHeight;
+  }
+}
+function addChatMessage(sender, text, type) {
+  try {
+    const container = document.getElementById('chat-messages');
+    if (!container) return; // Safety check - chat container not ready yet
+    
+    const div = document.createElement('div');
+    div.className = `chat-msg ${type}`;
+    div.innerText = `${sender}: ${text}`;
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+    
+    // Δεν ανοίγουμε αυτόματα το chat - απλά προσθέτουμε indicator στο ρομπότ
+    const chat = document.getElementById('chatbot-container');
+    if (chat && chat.style.display !== 'flex') {
+      if (typeof unreadChatMessages === 'undefined') unreadChatMessages = 0;
+      unreadChatMessages++;
+      const robotBtn = document.getElementById('robot-operator-btn');
+      if (robotBtn) {
+        robotBtn.classList.add('has-messages');
+        robotBtn.title = `🤖 The Operator (${unreadChatMessages} νέο${unreadChatMessages > 1 ? 'α' : ''} μήνυμα)`;
+      }
+    }
+  } catch (error) {
+    console.warn("addChatMessage error (non-critical):", error);
+    // Don't break the game if chat fails
+  }
+}
+function checkIdleTimeFunc() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => {
+    if(currentRoomId && !solvedRooms[currentRoomId]) {
+      addChatMessage("Operator", "Πράκτορα, βλέπω ότι καθυστερείς. Θες μια υπόδειξη;", "operator");
+      chatInteractions++;
+    }
+  }, 45000);
+}
+
+/* NAVIGATION & FLASHLIGHT */
+function enterGame() {
+  document.getElementById("splash").style.display = "none";
+  goTo("instructions");
+  speak("Καλώς ήρθες πράκτορα. Το σύστημα δέχεται επίθεση. Πρέπει να λύσεις τους γρίφους για να αποδράσεις και να σώσεις το εργαστήριο.");
+}
+
+function goTo(screenId) {
+  try {
+    // FIX: Clear Virus on Room Exit
+    if (virusInterval) {
+      clearInterval(virusInterval);
+      virusInterval = null;
+      document.querySelectorAll('.virus-popup').forEach(p => p.remove());
+    }
+
+    const newScreen = document.getElementById(screenId);
+    if (!newScreen) return;
+
+    checkIdleTimeFunc();
+
+    const now = new Date();
+    if (currentRoomId && currentRoomId.startsWith("room") && roomEnterTime) {
+      roomTime[currentRoomId] += (now - roomEnterTime)/1000;
+    }
+
+    if (screenId.startsWith("room")) {
+      currentRoomId = screenId;
+      roomEnterTime = now;
+      if (roomConfig && roomConfig[currentRoomId]) {
+        addChatMessage("Operator", `Entering Node: ${roomConfig[currentRoomId].title}`, "operator");
+      }
+      logAction("ENTER_ROOM", currentRoomId, "Started");
+    } else {
+      currentRoomId = null;
+    }
+
+  document.querySelectorAll('.screen').forEach(s => { s.style.display="none"; s.classList.remove('active'); });
+  newScreen.style.display = "block";
+  setTimeout(()=>newScreen.classList.add('active'), 50);
+
+  lastScreen = (screenId !== 'glossary') ? screenId : lastScreen;
+  updateHUD(screenId);
+  updateProgressMap(screenId);
+
+  // FLASHLIGHT RESET
+  const overlay = document.getElementById('darkness-overlay');
+  if (screenId.startsWith("room") && roomConfig[screenId] && roomConfig[screenId].isDark) {
+    overlay.style.display = 'block';
+    speak("Προσοχή. Διακοπή ρεύματος. Χρησιμοποίησε τον φακό.");
+  } else {
+    overlay.style.display = 'none';
+  }
+
+  if (screenId.startsWith("room")) {
+    playRoomNarration(screenId);
+    playSfx("door");
+    // Mysterious cue when entering the dark room (power cut)
+    if (screenId === "room4" && roomConfig[screenId] && roomConfig[screenId].isDark && !muteSounds) {
+      try { mysteriousSound.currentTime = 0; mysteriousSound.play().catch(()=>{}); } catch(e) {}
+    }
+    // Tension cue when entering BOSS room
+    if (screenId === "room10" && !muteSounds) {
+      try { mysteriousSound.currentTime = 0; mysteriousSound.play().catch(()=>{}); } catch(e) {}
+    }
+  }
+
+  playBGMForScreen(screenId);
+
+  if (screenId === 'room1') {
+    initTerminalRoom1();
+  }
+
+  if (screenId === 'exit') finishSession();
+  } catch (error) {
+    console.error("Error in goTo:", error);
+    // Don't break navigation - just log the error
+  }
+}
+
+function playRoomNarration(roomId) {
+  const storyEl = document.getElementById("story-" + roomId);
+  if (storyEl && !muteSpeech) {
+    if (speechSynthesis.speaking) speechSynthesis.cancel();
+    let u = new SpeechSynthesisUtterance(fixPhonetics(storyEl.innerText));
+    u.lang = "el-GR";
+    speechSynthesis.speak(u);
+  }
+}
+function repeatQuestion(roomId) {
+  if (muteSpeech) return;
+  const qEl = document.getElementById("qtext-" + roomId);
+  if(qEl) {
+    if (speechSynthesis.speaking) speechSynthesis.cancel();
+    let u = new SpeechSynthesisUtterance(fixPhonetics(qEl.innerText));
+    u.lang = "el-GR";
+    speechSynthesis.speak(u);
+  }
+}
+
+/* START GAME */
+function startGame() {
+  try {
+    timeLeft = 900;
+    integrity = 100;
+    score = 150; // Score starts at 150
+    resetStructures();
+
+    clearInterval(timerInterval);
+    const timerEl = document.getElementById("timer");
+    if (timerEl) timerEl.style.display = "inline-block";
+
+    timerInterval = setInterval(()=> {
+      if(timeLeft <= 0 || integrity <= 0) {
+        clearInterval(timerInterval);
+        // Stop timer display
+        if (timerEl) timerEl.innerText = "⏳ 0:00";
+        // Show Game Over Screen instead of hard reset
+        showGameOverScreen();
+      } else {
+        timeLeft--;
+        let m = Math.floor(timeLeft/60);
+        let s = timeLeft%60;
+        if (timerEl) timerEl.innerText = "⏳ " + m + ":" + (s<10?"0":"")+s;
+      }
+    },1000);
+
+    sessionStartTime = new Date();
+    gameStarted = true;
+    unlockAllAudio();
+    goTo('room1');
+  } catch (error) {
+    console.error("Error in startGame:", error);
+    alert("Σφάλμα έναρξης παιχνιδιού. Ελέγξτε την κονσόλα για λεπτομέρειες.");
+  }
+}
+
+/* FINISH + LOGGING */
+function finishSession() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  sessionEndTime = new Date();
+  const finalScore = Math.max(0, score);
+  document.getElementById('finalScore').innerText = finalScore;
+  document.getElementById('maxScore').innerText = "150";
+
+  const name = playerProfile.name || "Πράκτορα";
+  const congrats = `Συγχαρητήρια ${name}! Απέδρασες με επιτυχία και έσωσες το εργαστήριο.`;
+  const exitP = document.getElementById("exitCongrats");
+  if(exitP) exitP.innerText = congrats;
+
+  // Awards based on final score (150 - penalties)
+  let celeb = document.getElementById("celebration");
+  let ach = document.getElementById("achievement");
+
+  if (finalScore >= 130 && integrity >= 70) {
+    celeb.className = "celebration-legendary";
+    celeb.innerText = "🎆 ΑΠΟΛΥΤΗ ΕΠΙΤΥΧΙΑ! Ο ιός διαγράφηκε πλήρως!";
+    ach.innerText = "🏆 RANK: ELITE HACKER (Εξειδικευμένος Πράκτορας)";
+  } else if (finalScore >= 100) {
+    celeb.className = "celebration-good";
+    celeb.innerText = "🎉 ΚΑΛΗ ΔΟΥΛΕΙΑ! Το σύστημα σώθηκε.";
+    ach.innerText = "🥈 RANK: SECURITY OFFICER (Αξιωματικός Ασφαλείας)";
+  } else {
+    celeb.className = "celebration-basic";
+    celeb.innerText = "✅ Αποστολή ολοκληρώθηκε. Χρειάζεται περισσότερη προσοχή στην ασφάλεια!";
+    ach.innerText = "🥉 RANK: TRAINEE (Εκπαιδευόμενος)";
+  }
+
+  stopBGM();
+  try { ambientLoopSound.pause(); ambientLoopSound.currentTime = 0; } catch(e) {}
+  if (!muteSounds) {
+    try { victoryMusic.currentTime = 0; victoryMusic.play().catch(()=>{}); } catch(e) {}
+    try { victorySound.currentTime = 0; victorySound.play().catch(()=>{}); } catch(e) {}
+    setTimeout(function() {
+      try { applauseSound.currentTime = 0; applauseSound.play().catch(()=>{}); } catch(e) {};
+    }, 1600);
+  }
+
+  if(!muteSpeech) speak(congrats + " Το σύστημα είναι ασφαλές.");
+
+  buildStudentStats();
+  updateSessionLog();
+}
+
+/* Ανάλυση Επιδόσεων ανά Node - για μαθητές λυκείου/ειδικότητες */
+const roomShortNames = {
+  room1: "Node 1: Python Terminal", room2: "Node 2: Network Protocols", room3: "Node 3: Binary Decryption", 
+  room4: "Node 4: Server Hardware", room5: "Node 5: Security Clearance", room6: "Node 6: Algorithm Debug",
+  room7: "Node 7: Loop Iteration", room8: "Node 8: Logic Gates", room9: "Node 9: SQL Injection",
+  room10: "Node 10: BOSS Fight"
+};
+
+const roomTopics = {
+  room1: "Python Syntax", room2: "Network Fundamentals", room3: "Binary Systems", room4: "Hardware Components",
+  room5: "Security Protocols", room6: "Algorithm Logic", room7: "Control Flow", room8: "Syntax Debugging",
+  room9: "Database Queries", room10: "Multi-step Security"
+};
+
+function buildStudentStats() {
+  const container = document.getElementById("studentStatsContent");
+  if (!container) return;
+
+  const roomIds = ["room1","room2","room3","room4","room5","room6","room7","room8","room9","room10"];
+  const performanceData = [];
+  const highPerformance = [];
+  const needsReview = [];
+  const criticalErrors = [];
+
+  for (const rid of roomIds) {
+    const att = attempts[rid] || 0;
+    const hints = hintsUsed[rid] || 0;
+    const solved = !!solvedRooms[rid];
+    const label = roomShortNames[rid] || rid;
+    const topic = roomTopics[rid] || "";
+    
+    // Calculate accuracy: solved with minimal attempts = high accuracy
+    const accuracy = solved ? (att <= 1 && hints === 0 ? "High" : att <= 2 && hints <= 1 ? "Medium" : "Low") : "Failed";
+    const efficiency = solved ? (att + hints) : null; // Lower is better
+    
+    performanceData.push({ rid, label, topic, att, hints, solved, accuracy, efficiency });
+    
+    if (solved && att <= 1 && hints === 0)
+      highPerformance.push({ label, topic, att, hints });
+    else if (!solved || att >= 2 || hints >= 1)
+      needsReview.push({ label, topic, att, hints, solved, accuracy });
+    if (att > 0)
+      criticalErrors.push({ label, topic, att, hints });
+  }
+
+  criticalErrors.sort((a, b) => b.att - a.att);
+  const topErrors = criticalErrors.slice(0, 3);
+
+  let html = "";
+  
+  // High Performance Section
+  if (highPerformance.length > 0) {
+    html += "<div class='stat-block excellent'><div class='stat-block-title'>✓ Υψηλή Απόδοση</div>" +
+      "<ul class='stat-block-list'>" + highPerformance.map(r => 
+        "<li><strong>" + r.label + "</strong><br><span style='font-size:0.85em; color:#aaa;'>" + r.topic + " • Accuracy: High</span></li>"
+      ).join("") + "</ul></div>";
+  }
+  
+  // Needs Review Section
+  if (needsReview.length > 0) {
+    const reviewItems = needsReview.map(r => {
+      const metrics = [];
+      if (r.att > 0) metrics.push(r.att + " failed attempts");
+      if (r.hints > 0) metrics.push(r.hints + " hints used");
+      const status = r.solved ? "Completed" : "Incomplete";
+      return "<li><strong>" + r.label + "</strong><br>" +
+        "<span style='font-size:0.85em; color:#aaa;'>" + r.topic + " • " + status + 
+        (metrics.length > 0 ? " • " + metrics.join(", ") : "") + "</span></li>";
+    }).join("");
+    html += "<div class='stat-block need-repeat'><div class='stat-block-title'>⚠️ Απαιτείται Επανεξέταση</div><ul class='stat-block-list'>" + reviewItems + "</ul></div>";
+  }
+  
+  // Critical Errors Section
+  if (topErrors.length > 0) {
+    html += "<div class='stat-block most-mistakes'><div class='stat-block-title'>🔴 Κρίσιμα Σημεία</div>" +
+      "<ul class='stat-block-list'>" + topErrors.map(r => 
+        "<li><strong>" + r.label + "</strong><br><span style='font-size:0.85em; color:#aaa;'>" + r.topic + 
+        " • Error count: " + r.att + "</span></li>"
+      ).join("") + "</ul></div>";
+  }
+  
+  if (!html)
+    html = "<p style='color:#888; text-align:center;'>Δεν υπάρχουν δεδομένα ανάλυσης.</p>";
+  else
+    html += "<div class='student-stats-footer'>Σύσταση: Εστίασε στην επανάληψη των θεμάτων με χαμηλή απόδοση. Τα nodes με υψηλή ακρίβεια δείχνουν καλή κατανόηση.</div>";
+
+  container.innerHTML = html;
+}
+
+function updateSessionLog() {
+  const inv = inventory.map(i => ({ icon: i.icon, text: i.text, roomId: i.roomId }));
+
+  const logObject = {
+    version: "EscapeRoom-TheWiper-Thesis-Final",
+    timestamps: {
+      startISO: sessionStartTime ? sessionStartTime.toISOString() : null,
+      endISO: sessionEndTime ? sessionEndTime.toISOString() : null
+    },
+    player: {
+      name: playerProfile.name,
+      avatar: playerProfile.avatar
+    },
+    session: {
+      durationSeconds: (sessionStartTime && sessionEndTime) ? Math.round((sessionEndTime - sessionStartTime)/1000) : null,
+      timeLimitSeconds: 900
+    },
+    score: {
+      total: score,
+      maxBaseScore: MAX_SCORE,
+      integrity: integrity
+    },
+    engagementMetrics: {
+      chatInteractions,
+      minigameAttempts,
+      combineAttempts
+    },
+    actionTimeline: actionLog, // --- NEW: DETAILED TIMELINE ---
+    inventory: inv
+  };
+
+  const area = document.getElementById("sessionLog");
+  if(area) area.value = JSON.stringify(logObject, null, 2);
+}
+
+/* PROFILE */
+function savePlayerSetup() {
+  playerProfile.name = document.getElementById("playerNameInput").value || "Unknown";
+  goTo('intro');
+}
+function selectAvatar(id, el) {
+  playerProfile.avatar = id;
+  document.querySelectorAll('.avatar-option').forEach(d=>d.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+/* DOWNLOADS */
+function downloadJSON() {
+  const logText = document.getElementById("sessionLog").value;
+  if (!logText) {
+    alert("Δεν υπάρχουν δεδομένα για export. Ολοκλήρωσε πρώτα το παιχνίδι.");
+    return;
+  }
+  // Ensure valid JSON formatting with proper indentation
+  let jsonData;
+  try {
+    jsonData = JSON.parse(logText); // Validate JSON
+    // Pretty print with 2-space indentation for readability
+    const jsonString = JSON.stringify(jsonData, null, 2);
+    const blob = new Blob([jsonString], {type: "application/json;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; 
+    a.download = "escape_room_session.json";
+    document.body.appendChild(a); 
+    a.click(); 
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    console.error("JSON parse error:", e);
+    alert("Σφάλμα στη δημιουργία JSON. Ελέγξτε την κονσόλα.");
+  }
+}
+function downloadCSV() {
+  const headers = ["playerName","avatar","totalScore","integrity","durationSeconds","chatInteractions","minigameAttempts","combineAttempts"];
+  const end = sessionEndTime || new Date();
+  const dur = sessionStartTime ? Math.round((end - sessionStartTime)/1000) : "";
+  const row = [
+    (playerProfile.name||""),
+    (playerProfile.avatar||""),
+    Math.max(0, score),
+    integrity,
+    dur,
+    chatInteractions,
+    minigameAttempts,
+    combineAttempts
+  ];
+  // Use comma as delimiter (standard CSV) with proper escaping
+  const escape = (v) => {
+    const str = String(v);
+    // If contains comma, newline, or quote, wrap in quotes and escape quotes
+    if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+      return '"' + str.replace(/"/g, '""') + '"';
+    }
+    return str;
+  };
+  const line1 = headers.map(escape).join(',');
+  const line2 = row.map(escape).join(',');
+  // UTF-8 BOM for Excel compatibility + Windows line endings
+  const csv = "\uFEFF" + line1 + "\r\n" + line2;
+  const blob = new Blob([csv], {type:"text/csv;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "escape_room_session.csv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function downloadCertificate() {
+  const name = playerProfile.name || "Πράκτορα";
+  const finalScore = Math.max(0, score); // Score based on 150 - penalties
+  
+  let rank = "";
+  let rankDesc = "";
+  let rankEmoji = "";
+  if (finalScore >= 130 && integrity >= 70) {
+    rank = "ELITE HACKER";
+    rankDesc = "Εξειδικευμένος Πράκτορας";
+    rankEmoji = "🏆";
+  } else if (finalScore >= 100) {
+    rank = "SECURITY OFFICER";
+    rankDesc = "Αξιωματικός Ασφαλείας";
+    rankEmoji = "🥈";
+  } else {
+    rank = "TRAINEE";
+    rankDesc = "Εκπαιδευόμενος";
+    rankEmoji = "🥉";
+  }
+  
+  const date = sessionEndTime ? new Date(sessionEndTime).toLocaleDateString('el-GR', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date().toLocaleDateString('el-GR', { year: 'numeric', month: 'long', day: 'numeric' });
+  const durationSeconds = sessionStartTime && sessionEndTime ? Math.round((sessionEndTime - sessionStartTime) / 1000) : 0;
+  const duration = Math.round(durationSeconds / 60); // Convert to minutes
+  
+  // Create certificate element
+  const certDiv = document.createElement('div');
+  certDiv.style.position = 'fixed';
+  certDiv.style.left = '-9999px';
+  certDiv.style.width = '1123px'; // A4 landscape width in pixels at 96dpi
+  certDiv.style.height = '794px'; // A4 landscape height
+  certDiv.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+  certDiv.style.padding = '40px';
+  certDiv.style.fontFamily = 'Arial, sans-serif';
+  certDiv.style.textAlign = 'center';
+  certDiv.style.color = '#333';
+  
+  certDiv.innerHTML = `
+    <div style="background: white; padding: 60px; border: 10px solid #ffd700; box-shadow: 0 0 30px rgba(0,0,0,0.3); height: 100%; display: flex; flex-direction: column; justify-content: center;">
+      <h1 style="color: #333; font-size: 42px; margin-bottom: 20px; margin-top: 0;">${rankEmoji} ΠΙΣΤΟΠΟΙΗΤΙΚΟ ΟΛΟΚΛΗΡΩΣΗΣ</h1>
+      <h2 style="color: #667eea; font-size: 32px; margin: 20px 0;">Escape Room: The Wiper</h2>
+      <div style="font-size: 36px; font-weight: bold; color: #764ba2; margin: 30px 0;">${name}</div>
+      <div style="font-size: 28px; color: #ff6b6b; margin: 20px 0; font-weight: bold;">${rank}</div>
+      <div style="font-size: 22px; color: #555; margin-bottom: 30px;">${rankDesc}</div>
+      <div style="font-size: 18px; color: #555; margin: 10px 0; line-height: 2;">
+        <p>Ολοκλήρωσε με επιτυχία την αποστολή αποδράσεως από το εργαστήριο.</p>
+          <p><strong>System Integrity:</strong> ${finalScore} / 150 πόντων</p>
+        <p><strong>Χρόνος ολοκλήρωσης:</strong> ${duration} λεπτά</p>
+        <p><strong>Ημερομηνία:</strong> ${date}</p>
+      </div>
+      <div style="margin-top: 40px; font-size: 14px; color: #888;">Αυτό το πιστοποιητικό αποδεικνύει την ολοκλήρωση του Escape Room: The Wiper</div>
+    </div>
+  `;
+  
+  document.body.appendChild(certDiv);
+  
+  // Use html2canvas to convert to image, then jsPDF to create PDF
+  setTimeout(() => {
+    html2canvas(certDiv, { scale: 2, useCORS: true }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF('landscape', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const ratio = Math.min(pdfWidth / imgWidth, pdfHeight / imgHeight);
+      const imgScaledWidth = imgWidth * ratio;
+      const imgScaledHeight = imgHeight * ratio;
+      const xOffset = (pdfWidth - imgScaledWidth) / 2;
+      const yOffset = (pdfHeight - imgScaledHeight) / 2;
+      
+      pdf.addImage(imgData, 'PNG', xOffset, yOffset, imgScaledWidth, imgScaledHeight);
+      pdf.save(`certificate_${name.replace(/\s+/g, '_')}_${Date.now()}.pdf`);
+      document.body.removeChild(certDiv);
+    }).catch(err => {
+      console.error("Error generating certificate:", err);
+      alert("Σφάλμα δημιουργίας πιστοποιητικού. Δοκιμάστε να ανοίξετε το PDF από το Print.");
+      document.body.removeChild(certDiv);
+    });
+  }, 100);
+}
+
+function restartGame() { location.reload(); }
+
+function showGameOverScreen() {
+  stopBGM();
+  if (bgMusic) bgMusic.pause();
+  if (ambientLoopSound) ambientLoopSound.pause();
+
+  // Play failure sound
+  playSfx("wrong");
+  
+  // Hide all screens and show game over screen
+  document.querySelectorAll('.screen').forEach(s => { 
+    s.style.display = "none"; 
+    s.classList.remove('active'); 
+  });
+  
+  const gameOverScreen = document.getElementById("gameOver");
+  if (gameOverScreen) {
+    gameOverScreen.style.display = "block";
+    setTimeout(() => gameOverScreen.classList.add('active'), 50);
+  }
+  
+  // Stop timer if still running
+  if (timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
+}
+
+function continueWithPenalty() {
+  // Penalty: lose 50 points (do not zero out)
+  score = Math.max(0, score - 50);
+  const scoreEl = document.getElementById("score-value");
+  if (scoreEl) scoreEl.innerText = String(score);
+  
+  // Reset timer to give more time (optional: add 5 minutes)
+  timeLeft = 300; // 5 more minutes
+  
+  // Restart timer
+  const timerEl = document.getElementById("timer");
+  if (timerEl) timerEl.style.display = "inline-block";
+  
+  clearInterval(timerInterval);
+  timerInterval = setInterval(()=> {
+    if(timeLeft <= 0 || integrity <= 0) {
+      clearInterval(timerInterval);
+      if (timerEl) timerEl.innerText = "⏳ 0:00";
+      showGameOverScreen();
+    } else {
+      timeLeft--;
+      let m = Math.floor(timeLeft/60);
+      let s = timeLeft%60;
+      if (timerEl) timerEl.innerText = "⏳ " + m + ":" + (s<10?"0":"")+s;
+    }
+  },1000);
+  
+  // Hide game over screen and return to current room
+  const gameOverScreen = document.getElementById("gameOver");
+  if (gameOverScreen) {
+    gameOverScreen.style.display = "none";
+    gameOverScreen.classList.remove('active');
+  }
+  
+  // Return to the room the player was in (or room1 if none)
+  const roomToReturn = currentRoomId || 'room1';
+  goTo(roomToReturn);
+  
+  // Show message
+  addChatMessage("System", "⚠️ Ποινή εφαρμόστηκε: -50 πόντοι. Έχεις 5 λεπτά ακόμα.", "system");
+  
+  // Play sound
+  playSfx("shortCircuit");
+}
+
+/* FLASHLIGHT MOUSE TRACKING */
+document.addEventListener('mousemove', function(e) {
+  const overlay = document.getElementById('darkness-overlay');
+  if(overlay.style.display !== 'none') {
+    overlay.style.background = `radial-gradient(circle 250px at ${e.clientX}px ${e.clientY}px, transparent 0%, rgba(0,0,0,0.98) 100%)`;
+  }
+});
+
+/* DRAGGABLE WINDOWS (Only for Terminal Room 1) */
+function makeDraggable(elmnt) {
+  let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  const header = elmnt.querySelector('.window-header');
+  if (header) {
+    header.onmousedown = dragMouseDown;
+  }
+
+  function dragMouseDown(e) {
+    e = e || window.event;
+    e.preventDefault();
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    document.onmouseup = closeDragElement;
+    document.onmousemove = elementDrag;
+  }
+
+  function elementDrag(e) {
+    e = e || window.event;
+    e.preventDefault();
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
+    elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
+    elmnt.style.transform = "none";
+  }
+
+  function closeDragElement() {
+    document.onmouseup = null;
+    document.onmousemove = null;
+  }
+}
+
+/* INIT */
+window.onload = () => {
+  document.getElementById("splash").style.display = "flex";
+  initProgressMap();
+  initRoom2Drag(); 
+  initParsonsDrag(); 
+  makeDraggable(document.getElementById("qblock-room1"));
+};
+</script>
+
+<script>
+/* =========================================
+   🕵️‍♂️ SECRET HACKER MODE (F12 EASTER EGG)
+   ========================================= */
+
+// 1. Μήνυμα καλωσορίσματος στην Κονσόλα
+setTimeout(() => {
+    console.clear();
+    const styleTitle = "color: #ff0000; font-size: 20px; font-weight: bold; text-shadow: 2px 2px #000; background: #222; padding: 10px; border: 2px solid red;";
+    const styleBody = "color: #00ff00; font-size: 14px; font-family: monospace; background: #111; padding: 5px;";
+    const styleCode = "color: #ffff00; font-size: 16px; font-weight: bold; background: #333; padding: 4px; border: 1px dashed yellow; cursor: pointer;";
+
+    console.log("%c⚠️ SECURITY BREACH DETECTED ⚠️", styleTitle);
+    console.log("%cΠράκτορα, βλέπω ότι ξέρεις να κοιτάς πίσω από τις γραμμές...", styleBody);
+    console.log("%cΑν όντως ξέρεις τι κάνεις, τρέξε την εντολή: %cadminOverride()", styleBody, styleCode);
+    
+    // Detection για DevTools - ελέγχει αν είναι ανοιχτό
+    detectDevTools();
+    
+}, 2000);
+
+// Detection function για DevTools
+function detectDevTools() {
+    let devtools = {open: false, orientation: null};
+    const threshold = 160;
+    
+    setInterval(() => {
+        if (window.outerHeight - window.innerHeight > threshold || 
+            window.outerWidth - window.innerWidth > threshold) {
+            if (!devtools.open) {
+                devtools.open = true;
+                // DevTools ανοίχτηκε - εμφάνισε το hint
+                setTimeout(() => {
+                    showConsoleHint();
+                }, 500);
+            }
+        } else {
+            if (devtools.open) {
+                devtools.open = false;
+                // DevTools έκλεισε - κρύψε το hint
+                const hint = document.getElementById('console-hint');
+                if (hint) hint.remove();
+            }
+        }
+    }, 500);
+}
+
+// Visual hint για το Console tab
+function showConsoleHint() {
+    // Αφαιρούμε το προηγούμενο hint αν υπάρχει
+    const existingHint = document.getElementById('console-hint');
+    if(existingHint) return; // Αν υπάρχει ήδη, μην το ξαναδείξεις
+    
+    const hint = document.createElement('div');
+    hint.id = 'console-hint';
+    hint.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: rgba(0, 0, 0, 0.9);
+        border: 2px solid #ff0000;
+        color: #00ff00;
+        padding: 15px 20px;
+        border-radius: 8px;
+        font-family: monospace;
+        font-size: 14px;
+        z-index: 99999;
+        box-shadow: 0 0 20px rgba(255, 0, 0, 0.5);
+        animation: pulse-hint 2s infinite;
+    `;
+    hint.innerHTML = `
+        <div style="color: #ff0000; font-weight: bold; margin-bottom: 8px;">⚠️ DEVTOOLS DETECTED</div>
+        <div>Κάνε κλικ στο <strong style="color: #ffff00;">Console</strong> tab για να δεις το μήνυμα!</div>
+        <div style="font-size: 11px; color: #aaa; margin-top: 8px;">(ή πάτα ESC για να κλείσεις)</div>
+    `;
+    
+    // CSS animation για pulse effect
+    if(!document.getElementById('console-hint-style')) {
+        const style = document.createElement('style');
+        style.id = 'console-hint-style';
+        style.textContent = `
+            @keyframes pulse-hint {
+                0%, 100% { opacity: 1; transform: scale(1); }
+                50% { opacity: 0.8; transform: scale(1.02); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+    
+    document.body.appendChild(hint);
+    
+    // Κλείσιμο με ESC ή κλικ
+    const closeHint = (e) => {
+        if(e.key === 'Escape' || e.type === 'click') {
+            if(hint.parentNode) hint.remove();
+            document.removeEventListener('keydown', closeHint);
+        }
+    };
+    document.addEventListener('keydown', closeHint);
+    hint.addEventListener('click', closeHint);
+}
+
+// 2. Η Συνάρτηση που καλεί ο μαθητής
+window.adminOverride = function() {
+    console.log("%c🚀 ROOT ACCESS GRANTED. BYPASSING SECURITY...", "color: lime; font-size: 20px; font-weight: bold;");
+    
+    // Σταματάμε τον χρόνο
+    clearInterval(timerInterval);
+    
+    // Σταματάμε τον ιό (αν τρέχει)
+    if(virusInterval) clearInterval(virusInterval);
+    document.querySelectorAll('.virus-popup').forEach(el => el.remove());
+
+    // Δίνουμε το απόλυτο σκορ και ειδικό τίτλο
+    score = 1337; 
+    integrity = 100;
+    playerProfile.name = (playerProfile.name || "Agent") + " (The Console Hacker)";
+
+    // Ήχος νίκης
+    if(!muteSounds) { 
+        let winSfx = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"); 
+        if(typeof victorySound !== 'undefined') victorySound.play(); 
+        else winSfx.play();
+    }
+
+    // Εμφάνιση μηνύματος στην οθόνη
+    const hud = document.getElementById('hudWrapper');
+    if(hud) hud.style.display = 'none'; // Κρύβουμε το UI
+
+    cinematic("SYSTEM HACKED", "Admin Access Granted via Console.", 3000);
+
+    // Μετάβαση στην οθόνη τερματισμού μετά από 2 δευτερόλεπτα
+    setTimeout(() => {
+        document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+        document.getElementById('splash').style.display = 'none';
+        
+        const exit = document.getElementById('exit');
+        exit.style.display = 'block';
+        exit.classList.add('active');
+
+        document.getElementById('exitCongrats').innerHTML = "<span style='color:red; font-family:monospace'>// SYSTEM_OVERRIDE_SUCCESSFUL</span>";
+        document.getElementById('achievement').innerHTML = "🏆 RANK: <b>GOD MODE (Developer)</b><br>«Δεν έπαιξες το παιχνίδι. Το 'χάκαρες'.»";
+        document.getElementById('finalScore').innerText = "∞";
+        
+        // Καταγραφή στο Log
+        logAction("HACK", "console", "adminOverride() triggered via F12");
+        updateSessionLog();
+
+    }, 2000);
+
+    return "System Hacked Successfully.";
+};
+</script>
+
+</body>
+</html>
