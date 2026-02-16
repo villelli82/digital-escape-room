@@ -2,6 +2,7 @@
 <html lang="el">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5, user-scalable=yes">
   <title>Escape Room Πληροφορικής: The Wiper Virus </title>
   <style>
     :root{
@@ -158,7 +159,12 @@
       background: rgba(30,30,30,0.8);
       border-radius: 10px;
     }
-    .drag-item { cursor: grab; z-index: 100; }
+    .drag-item { cursor: grab; z-index: 100; touch-action: none; }
+    .parsons-line { touch-action: none; }
+    .drag-item.dragging-touch, .parsons-line.dragging-touch {
+      position: fixed !important; z-index: 9999; pointer-events: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    }
 
     /* PARSONS PROBLEM STYLES (Room 6) */
     .parsons-container {
@@ -3014,8 +3020,60 @@ function bossFightStep(step, isCorrect) {
   }
 }
 
-/* DRAG & DROP: ROOM 2 (CLASSIC) */
+/* DRAG & DROP: ROOM 2 (CLASSIC) + TOUCH for mobile/tablet */
 let draggedItem = null;
+let touchDragOffset = { x: 0, y: 0 };
+let lastTouchPos = { x: 0, y: 0 };
+
+function setupTouchDrag(items, dropZonesSelector, itemClass) {
+  if (!items.length) return;
+  const dropZones = document.querySelectorAll(dropZonesSelector);
+  items.forEach(item => {
+    item.addEventListener('touchstart', function(e) {
+      if (e.touches.length !== 1) return;
+      const t = e.touches[0];
+      const rect = item.getBoundingClientRect();
+      touchDragOffset.x = t.clientX - rect.left;
+      touchDragOffset.y = t.clientY - rect.top;
+      lastTouchPos.x = t.clientX;
+      lastTouchPos.y = t.clientY;
+      draggedItem = item;
+      item.classList.add('dragging-touch');
+      item.style.left = (t.clientX - touchDragOffset.x) + 'px';
+      item.style.top = (t.clientY - touchDragOffset.y) + 'px';
+    }, { passive: true });
+    item.addEventListener('touchmove', function(e) {
+      if (e.touches.length !== 1 || draggedItem !== item) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      lastTouchPos.x = t.clientX;
+      lastTouchPos.y = t.clientY;
+      item.style.left = (t.clientX - touchDragOffset.x) + 'px';
+      item.style.top = (t.clientY - touchDragOffset.y) + 'px';
+    }, { passive: false });
+    item.addEventListener('touchend', function(e) {
+      if (draggedItem !== item) return;
+      const el = document.elementFromPoint(lastTouchPos.x, lastTouchPos.y);
+      for (let i = 0; i < dropZones.length; i++) {
+        if (dropZones[i] === el || dropZones[i].contains(el)) {
+          dropZones[i].appendChild(item);
+          break;
+        }
+      }
+      item.classList.remove('dragging-touch');
+      item.style.left = item.style.top = '';
+      draggedItem = null;
+    }, { passive: true });
+    item.addEventListener('touchcancel', function() {
+      if (draggedItem === item) {
+        item.classList.remove('dragging-touch');
+        item.style.left = item.style.top = '';
+        draggedItem = null;
+      }
+    }, { passive: true });
+  });
+}
+
 function initRoom2Drag(){
   const items = document.querySelectorAll('#room2-pool .drag-item');
   items.forEach(item => {
@@ -3040,6 +3098,8 @@ function initRoom2Drag(){
       }
     });
   });
+
+  setupTouchDrag(Array.from(items), '#room2 .drop-zone, #room2-pool', 'drag-item');
 }
 
 function checkRoom2() {
@@ -3060,10 +3120,10 @@ function resetRoom2() {
   document.getElementById('feedback2').innerHTML = "";
 }
 
-/* DRAG & DROP: ROOM 6 (PARSONS STRICT) */
+/* DRAG & DROP: ROOM 6 (PARSONS STRICT) + TOUCH for mobile/tablet */
 function initParsonsDrag(){
-  // Logic specifically for parsons lines
-  document.querySelectorAll('.parsons-line').forEach(item => {
+  const pItems = document.querySelectorAll('.parsons-line');
+  pItems.forEach(item => {
     item.addEventListener('dragstart', (e)=> {
         draggedItem = item;
         e.dataTransfer.effectAllowed = 'move';
@@ -3075,7 +3135,6 @@ function initParsonsDrag(){
     });
   });
 
-  // Zones for Room 6 only
   const pZones = document.querySelectorAll('.parsons-drop-area, #parsons-source');
   pZones.forEach(zone => {
     zone.addEventListener('dragover', (e) => { e.preventDefault(); });
@@ -3086,6 +3145,8 @@ function initParsonsDrag(){
       }
     });
   });
+
+  setupTouchDrag(Array.from(pItems), '.parsons-drop-area, #parsons-source', 'parsons-line');
 }
 
 /* MINIGAME */
@@ -3893,39 +3954,48 @@ document.addEventListener('mousemove', function(e) {
   }
 });
 
-/* DRAGGABLE WINDOWS (Only for Terminal Room 1) */
+/* DRAGGABLE WINDOWS (Only for Terminal Room 1) — mouse + touch for mobile/tablet */
 function makeDraggable(elmnt) {
   let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
   const header = elmnt.querySelector('.window-header');
-  if (header) {
-    header.onmousedown = dragMouseDown;
-  }
+  if (!header) return;
 
-  function dragMouseDown(e) {
+  function getCoords(e) {
+    if (e.touches && e.touches.length) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+  function dragStart(e) {
     e = e || window.event;
     e.preventDefault();
-    pos3 = e.clientX;
-    pos4 = e.clientY;
-    document.onmouseup = closeDragElement;
-    document.onmousemove = elementDrag;
+    const c = getCoords(e);
+    pos3 = c.x;
+    pos4 = c.y;
+    document.addEventListener('mouseup', closeDragElement);
+    document.addEventListener('mousemove', elementDrag);
+    document.addEventListener('touchend', closeDragElement, { passive: true });
+    document.addEventListener('touchmove', elementDrag, { passive: false });
   }
-
   function elementDrag(e) {
     e = e || window.event;
     e.preventDefault();
-    pos1 = pos3 - e.clientX;
-    pos2 = pos4 - e.clientY;
-    pos3 = e.clientX;
-    pos4 = e.clientY;
+    const c = getCoords(e);
+    pos1 = pos3 - c.x;
+    pos2 = pos4 - c.y;
+    pos3 = c.x;
+    pos4 = c.y;
     elmnt.style.top = (elmnt.offsetTop - pos2) + "px";
     elmnt.style.left = (elmnt.offsetLeft - pos1) + "px";
     elmnt.style.transform = "none";
   }
-
   function closeDragElement() {
-    document.onmouseup = null;
-    document.onmousemove = null;
+    document.removeEventListener('mouseup', closeDragElement);
+    document.removeEventListener('mousemove', elementDrag);
+    document.removeEventListener('touchend', closeDragElement);
+    document.removeEventListener('touchmove', elementDrag);
   }
+
+  header.onmousedown = dragStart;
+  header.addEventListener('touchstart', dragStart, { passive: false });
 }
 
 /* INIT */
