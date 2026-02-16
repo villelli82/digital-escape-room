@@ -966,6 +966,19 @@
       justify-content: center;
       align-items: center;
     }
+    .minigame-key-btn {
+      min-width: 56px;
+      min-height: 56px;
+      font-size: 1.2rem;
+      font-weight: bold;
+      background: #333;
+      color: #0f0;
+      border: 2px solid #0f0;
+      border-radius: 10px;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+    .minigame-key-btn:active { background: #0f0; color: #111; }
 
     /* CINEMATIC BANNER */
     #cinematic {
@@ -1074,6 +1087,13 @@
   <div id="minigame-target" style="font-size: 60px; font-weight: bold; color: yellow; margin: 20px;">X</div>
   <div id="minigame-progress" style="width: 300px; height: 10px; border: 1px solid #555; background: #222;">
     <div id="minigame-bar" style="width: 0%; height: 100%; background: #0f0;"></div>
+  </div>
+  <div id="minigame-touch-keys" style="display: none; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 20px;">
+    <button type="button" class="minigame-key-btn" data-key="W">W</button>
+    <button type="button" class="minigame-key-btn" data-key="A">A</button>
+    <button type="button" class="minigame-key-btn" data-key="S">S</button>
+    <button type="button" class="minigame-key-btn" data-key="D">D</button>
+    <button type="button" class="minigame-key-btn" data-key="SPACE">SPACE</button>
   </div>
 </div>
 
@@ -3149,9 +3169,14 @@ function initParsonsDrag(){
   setupTouchDrag(Array.from(pItems), '.parsons-drop-area, #parsons-source', 'parsons-line');
 }
 
-/* MINIGAME */
+/* MINIGAME — πληκτρολόγησε γρήγορα (keyboard + touch κουμπιά σε κινητά) */
 function triggerMinigame(nextRoom) {
-  document.getElementById('minigame-overlay').style.display = 'flex';
+  const overlay = document.getElementById('minigame-overlay');
+  const touchKeysEl = document.getElementById('minigame-touch-keys');
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0);
+  if (touchKeysEl) touchKeysEl.style.display = isTouchDevice ? 'flex' : 'none';
+
+  overlay.style.display = 'flex';
   let hits = 0;
   const targetEl = document.getElementById('minigame-target');
   const bar = document.getElementById('minigame-bar');
@@ -3161,30 +3186,41 @@ function triggerMinigame(nextRoom) {
     targetEl.innerText = letters[Math.floor(Math.random() * letters.length)];
   }, 1000);
 
-  const keyHandler = (e) => {
-    const overlay = document.getElementById('minigame-overlay');
-    if(overlay.style.display === 'flex') {
-      const req = targetEl.innerText;
-      let pressed = e.key.toUpperCase();
-      if (e.code === 'Space') pressed = 'SPACE';
-
-      if(pressed === req) {
-        hits++;
-        bar.style.width = (hits * 20) + "%";
-        if(hits >= 5) {
-          clearInterval(gameInterval);
-          overlay.style.display = 'none';
-          document.removeEventListener('keydown', keyHandler);
-          goToNextFrom('room2', nextRoom);
-        }
-      } else {
-        hits = Math.max(0, hits - 1);
-        bar.style.width = (hits * 20) + "%";
+  function applyHit(pressed) {
+    const req = targetEl.innerText;
+    if (pressed === req) {
+      hits++;
+      bar.style.width = (hits * 20) + "%";
+      if (hits >= 5) {
+        clearInterval(gameInterval);
+        overlay.style.display = 'none';
+        document.removeEventListener('keydown', keyHandler);
+        if (touchKeysEl) touchKeysEl.querySelectorAll('.minigame-key-btn').forEach(btn => btn.onclick = null);
+        goToNextFrom('room2', nextRoom);
       }
-      minigameAttempts++;
+    } else {
+      hits = Math.max(0, hits - 1);
+      bar.style.width = (hits * 20) + "%";
     }
+    minigameAttempts++;
+  }
+
+  const keyHandler = (e) => {
+    if (overlay.style.display !== 'flex') return;
+    let pressed = e.key.toUpperCase();
+    if (e.code === 'Space') pressed = 'SPACE';
+    applyHit(pressed);
   };
   document.addEventListener('keydown', keyHandler);
+
+  if (isTouchDevice && touchKeysEl) {
+    touchKeysEl.querySelectorAll('.minigame-key-btn').forEach(btn => {
+      btn.onclick = () => {
+        if (overlay.style.display !== 'flex') return;
+        applyHit(btn.getAttribute('data-key'));
+      };
+    });
+  }
 }
 
 /* COMBINE SYSTEM */
